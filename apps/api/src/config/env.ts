@@ -31,6 +31,8 @@ const envSchema = z.object({
     .enum(["true", "false"])
     .default("false")
     .transform((v) => v === "true"),
+  ANTHROPIC_API_KEY: z.string().optional(),
+  AI_MODEL: z.string().default("claude-opus-4-8"),
 });
 
 const parsed = envSchema.safeParse(process.env);

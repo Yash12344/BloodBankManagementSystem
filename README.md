@@ -166,6 +166,14 @@ skeleton landing page.
   whole pipeline; plus the [ops runbook](./docs/RUNBOOK.md) and
   [security posture](./docs/SECURITY.md). Web: settings page, donor recall action, the
   notification bell, and the live dashboard. Tests for the cold-chain window.
+- **Phase 11 — AI features (optional, flagged)** ✅ deterministic, always-on intelligence
+  (demand forecasting via moving-average + linear trend, low-stock prediction with
+  days-to-stockout and risk bands, smart donor suggestions ranked by group match / recency /
+  reliability) plus LLM-backed features behind `FEATURE_AI` + an Anthropic API key
+  (natural-language search → structured query, auto report summaries) that **degrade
+  gracefully** to a keyword heuristic / templated summary when disabled. Uses the official
+  Anthropic SDK with `claude-opus-4-8`. Web: a predicted-low-stock card on analytics.
+  Tests for the forecasting math and donor-ranking logic.
 
 Phase 1 follow-ups to do in a networked dev environment (the build sandbox could not reach
 the npm tarball CDN): run `pnpm install` to commit `pnpm-lock.yaml`, then switch CI/Docker

@@ -9,6 +9,13 @@ interface Trend { date: string; count: number }
 interface Demand { bloodGroup: string; units: number }
 interface TopDonor { id: string; name: string; bloodGroup: string; donationCount: number }
 interface Revenue { date: string; amountMinor: number }
+interface Forecast {
+  bloodGroup: string;
+  componentType: string;
+  available: number;
+  daysToStockout: number | null;
+  risk: "critical" | "warning" | "ok";
+}
 
 function MiniBars({ values, labels, color = "bg-primary" }: { values: number[]; labels?: string[]; color?: string }) {
   const max = Math.max(1, ...values);
@@ -28,12 +35,14 @@ export default function AnalyticsPage() {
   const [demand, setDemand] = useState<Demand[]>();
   const [donors, setDonors] = useState<TopDonor[]>();
   const [revenue, setRevenue] = useState<Revenue[]>();
+  const [forecast, setForecast] = useState<Forecast[]>();
 
   useEffect(() => {
     api<{ data: Trend[] }>("/analytics/collection-trends").then((r) => setTrend(r.data)).catch(() => setTrend([]));
     api<{ data: Demand[] }>("/analytics/demand-by-group").then((r) => setDemand(r.data)).catch(() => setDemand([]));
     api<{ data: TopDonor[] }>("/analytics/top-donors").then((r) => setDonors(r.data)).catch(() => setDonors([]));
     api<{ data: Revenue[] }>("/analytics/revenue").then((r) => setRevenue(r.data)).catch(() => setRevenue([]));
+    api<{ data: Forecast[] }>("/ai/low-stock-forecast").then((r) => setForecast(r.data)).catch(() => setForecast([]));
   }, []);
 
   return (
@@ -73,6 +82,35 @@ export default function AnalyticsPage() {
                 );
               })
             ) : <ListSkeleton rows={4} />}
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <CardTitle>Predicted low stock</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {forecast ? (
+              forecast.filter((f) => f.risk !== "ok").length === 0 ? (
+                <p className="text-sm text-muted-foreground">No stockout risks predicted from recent demand.</p>
+              ) : (
+                <ul className="divide-y text-sm">
+                  {forecast.filter((f) => f.risk !== "ok").slice(0, 8).map((f) => (
+                    <li key={`${f.bloodGroup}-${f.componentType}`} className="flex items-center justify-between py-2">
+                      <span>
+                        <span className="font-medium">{f.bloodGroup}</span> {f.componentType}
+                        <span className="text-muted-foreground"> · {f.available} available</span>
+                      </span>
+                      <span className={f.risk === "critical" ? "font-medium text-destructive" : "font-medium text-warning"}>
+                        {f.daysToStockout != null ? `~${f.daysToStockout}d to stockout` : "—"}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )
+            ) : (
+              <ListSkeleton rows={3} />
+            )}
           </CardContent>
         </Card>
 
