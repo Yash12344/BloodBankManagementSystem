@@ -100,6 +100,7 @@ const ROLE_MATRIX: Record<string, string[]> = {
     "requests.create",
     "requests.view",
     "issue.view",
+    "issue.create",
     "hospitals.view",
   ],
   "Data Entry": [
@@ -128,6 +129,8 @@ const ROLE_MATRIX: Record<string, string[]> = {
     "dashboard.view",
     "inventory.*",
     "components.*",
+    "issue.view",
+    "issue.create",
     "reports.view",
   ],
 };

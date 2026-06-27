@@ -126,6 +126,15 @@ skeleton landing page.
   levels), expiring-soon, movement ledger, **FEFO** selection, and an hourly low-stock job
   (plus the existing nightly expiry sweep). Web: colour-coded inventory grid with cell
   drawer, and a lab worklist with the screening/approve/reject flow.
+- **Phase 6 — Patients, Requests, Cross-match & Issue** ✅ closes the loop. Patient CRUD;
+  blood requests with emergency surfacing; approval that **reserves units via FEFO** under
+  optimistic concurrency (two approvals can't grab the same unit); cancel that releases
+  reservations; cross-match; and the **atomic issue** — every guard rail enforced
+  server-side (unit reserved for this request, compatible cross-match, not expired), moving
+  RESERVED→ISSUED with a version guard, updating the ledger + counters, consuming
+  reservations, completing the request, and generating a DRAFT invoice from the price list.
+  Web: requests screen (create, approve, and a fulfil drawer that cross-matches then issues)
+  and a patients screen. Tests for invoice math (integer minor units, per-line GST rounding).
 
 Phase 1 follow-ups to do in a networked dev environment (the build sandbox could not reach
 the npm tarball CDN): run `pnpm install` to commit `pnpm-lock.yaml`, then switch CI/Docker

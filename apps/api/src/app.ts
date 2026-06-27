@@ -18,6 +18,9 @@ import { collectionRouter } from "./modules/collection/collection.routes.js";
 import { labRouter } from "./modules/lab/lab.routes.js";
 import { componentRouter } from "./modules/components/component.routes.js";
 import { inventoryRouter } from "./modules/inventory/inventory.routes.js";
+import { patientRouter } from "./modules/patients/patient.routes.js";
+import { requestRouter } from "./modules/requests/request.routes.js";
+import { issueRouter, crossMatchRouter } from "./modules/issue/issue.routes.js";
 
 /**
  * Builds the Express application with the baseline production middleware stack.
@@ -75,6 +78,10 @@ export function createApp(): Express {
   v1.use("/lab", labRouter);
   v1.use("/components", componentRouter);
   v1.use("/inventory", inventoryRouter);
+  v1.use("/patients", patientRouter);
+  v1.use("/requests", requestRouter);
+  v1.use("/issues", issueRouter);
+  v1.use("/crossmatch", crossMatchRouter);
 
   // Example of a permission-guarded route; every feature module follows this pattern.
   v1.get("/me/permissions", requireAuth, requirePermission("dashboard", "view"), (req, res) => {
