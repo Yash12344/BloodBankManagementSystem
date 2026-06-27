@@ -72,3 +72,7 @@ export async function createDonor(input: Record<string, unknown>): Promise<{ don
 export async function recordDonation(donorId: string): Promise<unknown> {
   return api("/collections", { method: "POST", body: JSON.stringify({ donorId }) });
 }
+
+export async function recallDonor(donorId: string, reason: string): Promise<{ quarantined: number; affectedIssues: number; notifiedHospitals: number }> {
+  return api(`/lookback/${donorId}/recall`, { method: "POST", body: JSON.stringify({ reason }) });
+}

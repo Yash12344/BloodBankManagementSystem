@@ -21,7 +21,7 @@ import { AddDonorDialog } from "@/components/donors/add-donor-dialog";
 import { PageHeader } from "@/components/page-header";
 import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
-import { recordDonation, useDonors, type Donor } from "@/lib/donors";
+import { recallDonor, recordDonation, useDonors, type Donor } from "@/lib/donors";
 
 function groupLabel(g: string) {
   return BLOOD_GROUP_LABEL[g as keyof typeof BLOOD_GROUP_LABEL] ?? g;
@@ -55,6 +55,22 @@ export default function DonorsPage() {
       refetch();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Failed to record donation");
+    } finally {
+      setDonating(false);
+    }
+  }
+
+  async function onRecall(donor: Donor) {
+    const reason = window.prompt(`Recall all units from ${donor.name}? Enter a reason:`);
+    if (!reason) return;
+    setDonating(true);
+    try {
+      const r = await recallDonor(donor.id, reason);
+      toast.success(`Recall done · ${r.quarantined} quarantined, ${r.notifiedHospitals} hospital(s) notified`);
+      setSelected(null);
+      refetch();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Recall failed");
     } finally {
       setDonating(false);
     }
@@ -179,8 +195,8 @@ export default function DonorsPage() {
                 </div>
               </div>
 
-              {can("collection", "create") && (
-                <div className="mt-auto">
+              <div className="mt-auto space-y-2">
+                {can("collection", "create") && (
                   <Button
                     className="w-full"
                     disabled={donating || !selected.eligibility.eligible}
@@ -188,8 +204,18 @@ export default function DonorsPage() {
                   >
                     {selected.eligibility.eligible ? "Record donation" : "Not eligible to donate"}
                   </Button>
-                </div>
-              )}
+                )}
+                {can("lab", "approve") && (
+                  <Button
+                    variant="destructive"
+                    className="w-full"
+                    disabled={donating}
+                    onClick={() => onRecall(selected)}
+                  >
+                    Recall (look-back)
+                  </Button>
+                )}
+              </div>
             </>
           )}
         </SheetContent>

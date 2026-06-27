@@ -1,7 +1,7 @@
 import type { Request, Response } from "express";
 import { Unauthorized } from "../../lib/errors.js";
 import * as issueService from "./issue.service.js";
-import { crossMatchSchema, issueCreateSchema } from "./issue.dto.js";
+import { crossMatchSchema, issueCreateSchema, issueReturnSchema } from "./issue.dto.js";
 
 function auth(req: Request) {
   if (!req.user) throw Unauthorized();
@@ -24,4 +24,10 @@ export async function create(req: Request, res: Response): Promise<void> {
 export async function getOne(req: Request, res: Response): Promise<void> {
   const { branchId } = auth(req);
   res.json({ issue: await issueService.getIssue(branchId, req.params.id as string) });
+}
+
+export async function returnIssue(req: Request, res: Response): Promise<void> {
+  const { branchId, ctx } = auth(req);
+  const { restock, reason } = issueReturnSchema.parse(req.body);
+  res.json(await issueService.returnIssue(branchId, ctx, req.params.id as string, restock, reason));
 }

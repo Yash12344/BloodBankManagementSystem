@@ -28,6 +28,8 @@ import { billingRouter } from "./modules/billing/billing.routes.js";
 import { notificationRouter } from "./modules/notifications/notification.routes.js";
 import { reportRouter } from "./modules/reports/report.routes.js";
 import { analyticsRouter } from "./modules/analytics/analytics.routes.js";
+import { lookbackRouter } from "./modules/lookback/lookback.routes.js";
+import { settingsRouter } from "./modules/settings/settings.routes.js";
 
 /**
  * Builds the Express application with the baseline production middleware stack.
@@ -96,6 +98,8 @@ export function createApp(): Express {
   v1.use("/notifications", notificationRouter);
   v1.use("/reports", reportRouter);
   v1.use("/analytics", analyticsRouter);
+  v1.use("/lookback", lookbackRouter);
+  v1.use("/settings", settingsRouter);
 
   // Example of a permission-guarded route; every feature module follows this pattern.
   v1.get("/me/permissions", requireAuth, requirePermission("dashboard", "view"), (req, res) => {

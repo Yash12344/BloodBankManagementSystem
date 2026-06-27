@@ -245,6 +245,33 @@ async function main() {
     });
   }
 
+  // 6. Demo data (donors, a hospital, a patient) so the app isn't empty on first run.
+  //    Skipped with SEED_DEMO=false, and only created when no donors exist yet.
+  if (process.env.SEED_DEMO !== "false" && (await prisma.donor.count({ where: { branchId: branch.id } })) === 0) {
+    const demoDonors = [
+      { name: "Rohit Mehta", gender: "MALE", bloodGroup: "O_POS", weightKg: 72, mobile: "9800000001", dob: new Date("1992-02-11") },
+      { name: "Sunita Iyer", gender: "FEMALE", bloodGroup: "B_NEG", weightKg: 58, mobile: "9800000002", dob: new Date("1990-07-02") },
+      { name: "Arjun Rao", gender: "MALE", bloodGroup: "A_POS", weightKg: 80, mobile: "9800000003", dob: new Date("1988-11-20") },
+      { name: "Meera Nair", gender: "FEMALE", bloodGroup: "AB_POS", weightKg: 63, mobile: "9800000004", dob: new Date("1995-05-15") },
+      { name: "Vikram Singh", gender: "MALE", bloodGroup: "O_NEG", weightKg: 75, mobile: "9800000005", dob: new Date("1985-01-30") },
+    ] as const;
+
+    let n = 1;
+    for (const d of demoDonors) {
+      await prisma.donor.create({
+        data: { branchId: branch.id, donorCode: `D${String(n++).padStart(5, "0")}`, ...d },
+      });
+    }
+
+    const hospital = await prisma.hospital.create({
+      data: { branchId: branch.id, name: "City General Hospital", phone: "0400000000", email: "info@citygeneral.local", creditLimitMinor: 5_000_00 },
+    });
+    await prisma.hospitalDoctor.create({ data: { hospitalId: hospital.id, name: "Dr. A. Kumar", specialization: "Haematology" } });
+    await prisma.patient.create({ data: { branchId: branch.id, hospitalId: hospital.id, name: "Ramesh Patient", age: 54, bloodGroup: "O_POS", diagnosis: "Anaemia" } });
+
+    console.log("Demo data seeded:", { donors: demoDonors.length, hospital: hospital.name });
+  }
+
   console.log("Seed complete:", {
     permissions: allPerms.length,
     roles: Object.keys(ROLE_MATRIX).length,

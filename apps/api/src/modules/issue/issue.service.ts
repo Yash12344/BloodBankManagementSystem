@@ -4,6 +4,7 @@ import { Conflict, DomainError, NotFound } from "../../lib/errors.js";
 import { prisma } from "../../lib/prisma.js";
 import { computeInvoiceTotals, type InvoiceLineInput } from "../billing/invoice.util.js";
 import { adjustStock, recordMovement } from "../inventory/stock.js";
+import { withinColdChainWindow } from "./coldchain.js";
 import type { CrossMatchInput, IssueCreateInput } from "./issue.dto.js";
 
 type Ctx = Pick<AuditInput, "ip" | "userAgent"> & { userId: string };
@@ -160,6 +161,50 @@ export async function createIssue(branchId: string, ctx: Ctx, input: IssueCreate
 
     await writeAudit({ branchId, userId: ctx.userId, entity: "issue", entityId: issue.id, action: "ISSUE", after: { components: resolved.length, invoice: invoice.number } }, tx);
     return { issue: { ...issue, slipUrl }, invoice };
+  });
+
+  return result;
+}
+
+/**
+ * Returns an issued unit set from the hospital. Components returned within the cold-chain
+ * window can re-enter stock (RETURN movement, issued→available); otherwise they are
+ * discarded. Ledger and counters update transactionally; the issue is marked RETURNED.
+ */
+export async function returnIssue(branchId: string, ctx: Ctx, issueId: string, restock: boolean, reason?: string) {
+  const issue = await prisma.issue.findFirst({
+    where: { id: issueId, branchId },
+    include: { items: { include: { component: { select: { id: true, status: true, version: true, bloodGroup: true, type: true } } } } },
+  });
+  if (!issue) throw NotFound("Issue not found");
+  if (issue.status !== "ISSUED") throw DomainError(`Issue is already ${issue.status.toLowerCase()}`);
+
+  const canRestock = restock && withinColdChainWindow(issue.issuedAt, new Date());
+
+  const result = await prisma.$transaction(async (tx) => {
+    let restocked = 0;
+    let discarded = 0;
+    for (const item of issue.items) {
+      const comp = item.component;
+      if (comp.status !== "ISSUED") continue;
+
+      if (canRestock) {
+        const moved = await tx.bloodComponent.updateMany({ where: { id: comp.id, status: "ISSUED", version: comp.version }, data: { status: "AVAILABLE", version: { increment: 1 } } });
+        if (moved.count === 0) throw Conflict("A unit changed concurrently; retry");
+        await recordMovement(tx, comp.id, "RETURN", { refType: "RETURN", refId: issueId, byUserId: ctx.userId });
+        await adjustStock(tx, branchId, comp.bloodGroup, comp.type, { issued: -1, available: 1 });
+        restocked++;
+      } else {
+        const moved = await tx.bloodComponent.updateMany({ where: { id: comp.id, status: "ISSUED", version: comp.version }, data: { status: "DISCARDED", version: { increment: 1 } } });
+        if (moved.count === 0) throw Conflict("A unit changed concurrently; retry");
+        await recordMovement(tx, comp.id, "DISCARD", { refType: "RETURN", refId: issueId, byUserId: ctx.userId });
+        await adjustStock(tx, branchId, comp.bloodGroup, comp.type, { issued: -1, discarded: 1 });
+        discarded++;
+      }
+    }
+    await tx.issue.update({ where: { id: issueId }, data: { status: "RETURNED" } });
+    await writeAudit({ branchId, userId: ctx.userId, entity: "issue", entityId: issueId, action: "RETURN", after: { restocked, discarded, withinColdChain: canRestock, reason } }, tx);
+    return { restocked, discarded, restockEligible: canRestock };
   });
 
   return result;

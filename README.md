@@ -38,6 +38,8 @@ in [`/docs`](./docs):
 | 6 | [USER_FLOWS.md](./docs/USER_FLOWS.md) | End-to-end user flows for every role |
 | 7 | [API.md](./docs/API.md) | REST API documentation |
 | 8 | [ROADMAP.md](./docs/ROADMAP.md) | Phased development roadmap |
+| 9 | [RUNBOOK.md](./docs/RUNBOOK.md) | Operations runbook — deploy, jobs, backup, incidents |
+| 10 | [SECURITY.md](./docs/SECURITY.md) | Security posture vs. OWASP Top 10 + checklist |
 
 The Prisma data model that implements the database design lives at
 [`packages/db/prisma/schema.prisma`](./packages/db/prisma/schema.prisma).
@@ -156,6 +158,14 @@ skeleton landing page.
   driving the real dashboard, collection/revenue trends, demand by group, component
   distribution, top donors/hospitals). Web: notification bell, reports page (preview +
   CSV download) and an analytics page with trend/ranking visualizations.
+- **Phase 10 — Hardening & launch** ✅ **look-back/recall** (trace a donor's full
+  unit→component→issue chain; recall quarantines in-stock units, blacklists the donor and
+  notifies affected hospitals); **return-from-hospital** (cold-chain-windowed restock or
+  discard); a **settings/audit surface** (organization, users, role×permission matrix,
+  append-only audit log); expanded **demo seed**; an end-to-end **smoke script** walking the
+  whole pipeline; plus the [ops runbook](./docs/RUNBOOK.md) and
+  [security posture](./docs/SECURITY.md). Web: settings page, donor recall action, the
+  notification bell, and the live dashboard. Tests for the cold-chain window.
 
 Phase 1 follow-ups to do in a networked dev environment (the build sandbox could not reach
 the npm tarball CDN): run `pnpm install` to commit `pnpm-lock.yaml`, then switch CI/Docker
