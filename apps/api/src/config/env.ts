@@ -18,6 +18,15 @@ const envSchema = z.object({
   REFRESH_TOKEN_TTL: z.string().default("7d"),
   OTP_TTL_SECONDS: z.coerce.number().int().positive().default(300),
 
+  BCRYPT_ROUNDS: z.coerce.number().int().min(8).max(15).default(10),
+  PASSWORD_RESET_TTL_SECONDS: z.coerce.number().int().positive().default(1800),
+  MAX_LOGIN_ATTEMPTS: z.coerce.number().int().positive().default(5),
+  LOGIN_LOCK_SECONDS: z.coerce.number().int().positive().default(900),
+  COOKIE_SECURE: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((v) => v === "true"),
+
   FEATURE_AI: z
     .enum(["true", "false"])
     .default("false")

@@ -6,9 +6,14 @@
  * Usage: DATABASE_URL=... pnpm --filter @bloodline/db seed
  */
 import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
 import { randomUUID } from "node:crypto";
 
 const prisma = new PrismaClient();
+
+// Default Super Admin credentials for first login. Override via env; rotate immediately.
+const SEED_ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL ?? "admin@bloodline.local";
+const SEED_ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD ?? "ChangeMe!123";
 
 // Modules and the actions each supports. The permission catalogue is the cartesian
 // product, plus a few module-specific actions (approve/export).
@@ -188,19 +193,18 @@ async function main() {
     create: { orgId: org.id, name: "Main Branch", code: "MAIN", timezone: "Asia/Kolkata" },
   });
 
-  // 4. Super Admin user. Password is hashed at the app layer; seed uses a placeholder
-  //    bcrypt hash for "ChangeMe!123" — rotate immediately after first login.
+  // 4. Super Admin user with a real bcrypt-hashed password so first login works.
   const superAdmin = await prisma.role.findUniqueOrThrow({ where: { name: "Super Admin" } });
+  const passwordHash = await bcrypt.hash(SEED_ADMIN_PASSWORD, 10);
   await prisma.user.upsert({
-    where: { email: "admin@bloodline.local" },
+    where: { email: SEED_ADMIN_EMAIL },
     update: {},
     create: {
       branchId: branch.id,
       roleId: superAdmin.id,
       name: "Super Admin",
-      email: "admin@bloodline.local",
-      // bcrypt hash of "ChangeMe!123" (cost 10). Replace via app on first login.
-      passwordHash: "$2b$10$3Q1m2bq7m9bL3l8s0Q1mEeXjJ0m1mF7m3o0nU0Z1l8m1f2q3r4s5",
+      email: SEED_ADMIN_EMAIL,
+      passwordHash,
       mfaEnabled: false,
     },
   });
@@ -242,6 +246,7 @@ async function main() {
     permissions: allPerms.length,
     roles: Object.keys(ROLE_MATRIX).length,
     branch: branch.code,
+    adminLogin: SEED_ADMIN_EMAIL,
   });
 }
 

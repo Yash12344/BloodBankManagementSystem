@@ -84,6 +84,7 @@ docker compose up -d postgres redis
 pnpm db:generate                 # generate Prisma client
 pnpm db:push                     # materialize schema (until migrations are committed)
 pnpm db:seed                     # roles, permissions, demo org + Super Admin
+# Default login: admin@bloodline.local / ChangeMe!123  (override via SEED_ADMIN_* env)
 pnpm --filter @bloodline/api dev # API on :4000  (GET /health, /ready)
 pnpm --filter @bloodline/api dev:worker
 pnpm --filter @bloodline/web dev # Web on :3000
@@ -98,6 +99,11 @@ skeleton landing page.
 - **Phase 1 — Foundations** ✅ monorepo (pnpm + turbo), Docker Compose (postgres, redis,
   api, worker, web, nginx), env validation, structured logging, health/readiness probes,
   the first background job (nightly expiry sweep), shared `types`/`db` packages, seed, CI.
+- **Phase 2 — Auth & RBAC** ✅ password hashing (bcrypt), JWT access + rotating refresh
+  tokens with reuse detection, OTP/MFA login, forgot/reset password, login lockout,
+  `requireAuth` + `requirePermission` middleware with effective-permission resolution
+  (role grants + per-user overrides + wildcards), append-only audit logging, and a minimal
+  web login (with OTP step) + session context + permission-gated dashboard nav.
 
 Phase 1 follow-ups to do in a networked dev environment (the build sandbox could not reach
 the npm tarball CDN): run `pnpm install` to commit `pnpm-lock.yaml`, then switch CI/Docker

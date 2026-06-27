@@ -9,7 +9,10 @@ import { randomUUID } from "node:crypto";
 import { env } from "./config/env.js";
 import { logger } from "./lib/logger.js";
 import { errorHandler, notFoundHandler } from "./middleware/error.js";
+import { requireAuth } from "./middleware/auth.js";
+import { requirePermission } from "./middleware/rbac.js";
 import { healthRouter } from "./routes/health.js";
+import { authRouter } from "./modules/auth/auth.routes.js";
 
 /**
  * Builds the Express application with the baseline production middleware stack.
@@ -58,9 +61,16 @@ export function createApp(): Express {
   // Health/readiness probes (unversioned).
   app.use(healthRouter);
 
-  // Versioned API surface. Feature routers mount here in later phases.
+  // Versioned API surface. Feature routers mount here as modules are built.
   const v1 = express.Router();
   v1.get("/", (_req, res) => res.json({ name: "BloodLine API", version: "v1", status: "ok" }));
+  v1.use("/auth", authRouter);
+
+  // Example of a permission-guarded route; every feature module follows this pattern.
+  v1.get("/me/permissions", requireAuth, requirePermission("dashboard", "view"), (req, res) => {
+    res.json({ permissions: [...(req.user?.permissions ?? [])] });
+  });
+
   app.use("/api/v1", v1);
 
   // Fallbacks.

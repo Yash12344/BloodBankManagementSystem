@@ -15,6 +15,7 @@ const config: Config = {
       },
       borderRadius: {
         card: "16px",
+        pill: "999px",
       },
       boxShadow: {
         card: "0 4px 12px rgba(0,0,0,0.06)",
