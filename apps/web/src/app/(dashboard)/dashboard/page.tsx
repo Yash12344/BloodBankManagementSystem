@@ -20,25 +20,37 @@ import {
 import { Droplets, Send, TriangleAlert } from "lucide-react";
 import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/page-header";
+import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { formatMinor } from "@/lib/operations";
 
-// KPI placeholders — wired to live data in later phases. Shown here to validate the
-// card layout, colour accents and responsive grid of the design system.
+interface Summary {
+  todaysCollection: number;
+  todaysIssued: number;
+  openRequests: number;
+  emergencies: number;
+  pendingTests: number;
+  todaysRevenueMinor: number;
+  totalAvailableUnits: number;
+  expiringSoon: number;
+}
+
 interface Kpi {
   label: string;
   value: string;
-  delta?: string;
-  tone?: "primary" | "destructive";
+  tone?: "destructive";
 }
 
-const KPIS: Kpi[] = [
-  { label: "Today's collection", value: "24", delta: "+12%", tone: "primary" },
-  { label: "Blood issued", value: "18" },
-  { label: "Open requests", value: "31" },
-  { label: "Emergency", value: "3", tone: "destructive" },
-  { label: "Pending tests", value: "9" },
-  { label: "Today's revenue", value: "₹42,300" },
-];
+function kpisFrom(s: Summary): Kpi[] {
+  return [
+    { label: "Today's collection", value: String(s.todaysCollection) },
+    { label: "Blood issued", value: String(s.todaysIssued) },
+    { label: "Open requests", value: String(s.openRequests) },
+    { label: "Emergency", value: String(s.emergencies), tone: s.emergencies > 0 ? "destructive" : undefined },
+    { label: "Pending tests", value: String(s.pendingTests) },
+    { label: "Today's revenue", value: formatMinor(s.todaysRevenueMinor) },
+  ];
+}
 
 interface Activity {
   id: string;
@@ -55,12 +67,15 @@ const SAMPLE: Activity[] = [
 export default function DashboardPage() {
   const { user } = useAuth();
 
+  const [summary, setSummary] = useState<Summary | null>(null);
+
   // Demonstrate the async DataState pattern: skeleton → data.
   const [loading, setLoading] = useState(true);
   const [activity, setActivity] = useState<Activity[]>([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   useEffect(() => {
+    api<Summary>("/analytics/summary").then(setSummary).catch(() => setSummary(null));
     const t = setTimeout(() => {
       setActivity(SAMPLE);
       setLoading(false);
@@ -68,11 +83,13 @@ export default function DashboardPage() {
     return () => clearTimeout(t);
   }, []);
 
+  const kpis = summary ? kpisFrom(summary) : [];
+
   return (
     <>
       <PageHeader
         title={`Welcome, ${user?.name ?? ""}`}
-        description="Authentication, RBAC and the design system are live. Live module data arrives next."
+        description="Live operational snapshot across the bank."
         actions={
           <Button
             onClick={() =>
@@ -88,14 +105,13 @@ export default function DashboardPage() {
       />
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-        {KPIS.map((k) => (
+        {kpis.map((k) => (
           <Card key={k.label}>
             <CardContent className="p-4">
               <div className="text-xs text-muted-foreground">{k.label}</div>
               <div className="mt-1 flex items-center gap-2">
                 <span className="text-2xl font-semibold">{k.value}</span>
-                {k.delta && <Badge variant="success">{k.delta}</Badge>}
-                {k.tone === "destructive" && <Badge variant="destructive">live</Badge>}
+                {k.tone === "destructive" && Number(k.value) > 0 && <Badge variant="destructive">live</Badge>}
               </div>
             </CardContent>
           </Card>

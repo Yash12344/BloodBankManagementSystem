@@ -14,6 +14,7 @@ import {
 import { PanelLeft, Search } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useUiStore } from "@/stores/ui-store";
+import { NotificationBell } from "./notification-bell";
 import { ThemeToggle } from "./theme-toggle";
 
 function initials(name: string): string {
@@ -47,6 +48,7 @@ export function Topbar() {
         </kbd>
       </button>
 
+      <NotificationBell />
       <ThemeToggle />
 
       <DropdownMenu>

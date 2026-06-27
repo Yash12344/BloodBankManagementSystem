@@ -5,7 +5,7 @@ import { redis } from "../lib/redis.js";
 export const QUEUE = {
   expirySweep: "expiry-sweep",
   lowStock: "low-stock",
-  notifications: "notifications",
+  outbox: "outbox",
   reports: "reports",
 } as const;
 
@@ -13,7 +13,7 @@ const connection = redis;
 
 export const expirySweepQueue = new Queue(QUEUE.expirySweep, { connection });
 export const lowStockQueue = new Queue(QUEUE.lowStock, { connection });
-export const notificationsQueue = new Queue(QUEUE.notifications, { connection });
+export const outboxQueue = new Queue(QUEUE.outbox, { connection });
 export const reportsQueue = new Queue(QUEUE.reports, { connection });
 
 /**
@@ -30,5 +30,11 @@ export async function scheduleRepeatableJobs(): Promise<void> {
     "hourly",
     {},
     { repeat: { pattern: "0 * * * *" }, removeOnComplete: 100, removeOnFail: 100 },
+  );
+  // Drain the notification outbox once a minute.
+  await outboxQueue.add(
+    "drain",
+    {},
+    { repeat: { pattern: "* * * * *" }, removeOnComplete: 50, removeOnFail: 50 },
   );
 }

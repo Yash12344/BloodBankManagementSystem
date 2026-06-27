@@ -25,6 +25,9 @@ import { hospitalRouter } from "./modules/hospitals/hospital.routes.js";
 import { campRouter } from "./modules/camps/camp.routes.js";
 import { staffRouter } from "./modules/staff/staff.routes.js";
 import { billingRouter } from "./modules/billing/billing.routes.js";
+import { notificationRouter } from "./modules/notifications/notification.routes.js";
+import { reportRouter } from "./modules/reports/report.routes.js";
+import { analyticsRouter } from "./modules/analytics/analytics.routes.js";
 
 /**
  * Builds the Express application with the baseline production middleware stack.
@@ -90,6 +93,9 @@ export function createApp(): Express {
   v1.use("/camps", campRouter);
   v1.use("/staff", staffRouter);
   v1.use("/billing", billingRouter);
+  v1.use("/notifications", notificationRouter);
+  v1.use("/reports", reportRouter);
+  v1.use("/analytics", analyticsRouter);
 
   // Example of a permission-guarded route; every feature module follows this pattern.
   v1.get("/me/permissions", requireAuth, requirePermission("dashboard", "view"), (req, res) => {

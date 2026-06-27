@@ -3,6 +3,7 @@
 import { cn, Tooltip, TooltipContent, TooltipTrigger } from "@bloodline/ui";
 import {
   ArrowLeftRight,
+  BarChart3,
   Boxes,
   Building2,
   Droplets,
@@ -38,6 +39,7 @@ const ICONS: Record<string, LucideIcon> = {
   staff: Users,
   billing: Receipt,
   reports: FileBarChart,
+  analytics: BarChart3,
   settings: Settings,
 };
 

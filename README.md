@@ -148,6 +148,14 @@ skeleton landing page.
   by method vs expenses); receivables **aging** buckets; and price-list management. Web:
   billing screen with the daily-cash summary and an invoice drawer that records payments.
   Tests for payment status/balance derivation (never negative, exact PAID/PARTIAL/UNPAID).
+- **Phase 9 — Reports, Notifications & Analytics** ✅ report engine with CSV/JSON exports
+  for inventory, donors, collection, issue, lab and finance (date-ranged); a notification
+  layer — in-app inbox (list, unread count, mark read/all) surfaced via a topbar bell, plus
+  a **transactional-outbox** delivery pipeline (email/SMS/WhatsApp adapters, per-minute
+  worker drain with exponential-backoff retries); and analytics (dashboard KPI summary now
+  driving the real dashboard, collection/revenue trends, demand by group, component
+  distribution, top donors/hospitals). Web: notification bell, reports page (preview +
+  CSV download) and an analytics page with trend/ranking visualizations.
 
 Phase 1 follow-ups to do in a networked dev environment (the build sandbox could not reach
 the npm tarball CDN): run `pnpm install` to commit `pnpm-lock.yaml`, then switch CI/Docker

@@ -22,5 +22,6 @@ export const NAV: NavItem[] = [
   { label: "Staff", module: "staff", href: "/staff" },
   { label: "Billing", module: "billing", href: "/billing" },
   { label: "Reports", module: "reports", href: "/reports" },
+  { label: "Analytics", module: "analytics", href: "/analytics" },
   { label: "Settings", module: "settings", href: "/settings" },
 ];

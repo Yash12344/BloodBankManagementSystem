@@ -2,6 +2,7 @@ import { Worker } from "bullmq";
 import { QUEUE, scheduleRepeatableJobs } from "./jobs/queues.js";
 import { runExpirySweep } from "./jobs/expirySweep.js";
 import { runLowStockCheck } from "./jobs/lowStock.js";
+import { processOutbox } from "./modules/notifications/outbox.js";
 import { redis } from "./lib/redis.js";
 import { logger } from "./lib/logger.js";
 
@@ -37,11 +38,18 @@ async function main() {
     logger.error({ jobId: job?.id, err }, "low-stock job failed"),
   );
 
+  const outboxWorker = new Worker(
+    QUEUE.outbox,
+    async () => ({ sent: await processOutbox() }),
+    { connection: redis, concurrency: 1 },
+  );
+  outboxWorker.on("failed", (job, err) => logger.error({ jobId: job?.id, err }, "outbox job failed"));
+
   logger.info("BloodLine worker started");
 
   const shutdown = async (signal: string) => {
     logger.info(`${signal} received, closing worker...`);
-    await Promise.all([expiryWorker.close(), lowStockWorker.close()]);
+    await Promise.all([expiryWorker.close(), lowStockWorker.close(), outboxWorker.close()]);
     redis.disconnect();
     process.exit(0);
   };
