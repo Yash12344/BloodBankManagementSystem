@@ -1,0 +1,10 @@
+{
+  "name": "BloodLine — Blood Bank Management",
+  "short_name": "BloodLine",
+  "description": "Run your blood bank without paperwork.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#E53935",
+  "icons": []
+}
