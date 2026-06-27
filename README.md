@@ -141,6 +141,13 @@ skeleton landing page.
   to each camp** (count, volume, unique donors, finance); staff profiles, per-day attendance,
   leave requests/approval, and per-user activity from the audit log. Web: hospitals, camps
   (with a stats drawer) and staff screens. Test for camp finance summary.
+- **Phase 8 — Billing & Finance** ✅ invoices list/detail; **idempotent payments**
+  (Idempotency-Key → unique payment, safe to retry; balance/status recomputed from the
+  authoritative payment sum under an optimistic version guard, hospital outstanding kept in
+  sync); void (blocked when payments exist); expenses ledger; **daily cash book** (cash in
+  by method vs expenses); receivables **aging** buckets; and price-list management. Web:
+  billing screen with the daily-cash summary and an invoice drawer that records payments.
+  Tests for payment status/balance derivation (never negative, exact PAID/PARTIAL/UNPAID).
 
 Phase 1 follow-ups to do in a networked dev environment (the build sandbox could not reach
 the npm tarball CDN): run `pnpm install` to commit `pnpm-lock.yaml`, then switch CI/Docker

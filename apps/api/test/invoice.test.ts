@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeInvoiceTotals, lineAmountMinor } from "../src/modules/billing/invoice.util.js";
+import { computeInvoiceTotals, invoiceStatusFor, lineAmountMinor } from "../src/modules/billing/invoice.util.js";
 
 describe("computeInvoiceTotals", () => {
   it("sums line amounts and rounds GST per line", () => {
@@ -25,5 +25,18 @@ describe("computeInvoiceTotals", () => {
     const totals = computeInvoiceTotals([{ description: "odd", qty: 1, unitPriceMinor: 99, gstRate: 18 }]);
     expect(Number.isInteger(totals.gstMinor)).toBe(true);
     expect(totals.gstMinor).toBe(Math.round((99 * 18) / 100));
+  });
+});
+
+describe("invoiceStatusFor", () => {
+  it("is UNPAID with no payment", () => {
+    expect(invoiceStatusFor(10000, 0)).toEqual({ balanceMinor: 10000, status: "UNPAID" });
+  });
+  it("is PARTIAL when some is paid", () => {
+    expect(invoiceStatusFor(10000, 4000)).toEqual({ balanceMinor: 6000, status: "PARTIAL" });
+  });
+  it("is PAID when fully (or over) paid, never negative balance", () => {
+    expect(invoiceStatusFor(10000, 10000)).toEqual({ balanceMinor: 0, status: "PAID" });
+    expect(invoiceStatusFor(10000, 12000)).toEqual({ balanceMinor: 0, status: "PAID" });
   });
 });
