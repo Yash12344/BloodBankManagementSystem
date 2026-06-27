@@ -104,6 +104,12 @@ skeleton landing page.
   `requireAuth` + `requirePermission` middleware with effective-permission resolution
   (role grants + per-user overrides + wildcards), append-only audit logging, and a minimal
   web login (with OTP step) + session context + permission-gated dashboard nav.
+- **Phase 3 — App shell & Design system** ✅ shared `@bloodline/ui` package (Tailwind
+  preset with HSL design tokens + dark mode, and shadcn-style primitives: Button, Card,
+  Input, Badge, Sheet/Dialog drawer, DropdownMenu, Tooltip, Avatar, Toaster, Skeleton and
+  loading/empty/error `DataState`). Dashboard shell with collapsible sidebar (icon +
+  tooltip mode, permission-filtered), topbar, dark-mode toggle, ⌘K command palette, and a
+  dashboard demonstrating KPI cards, the detail-drawer pattern, async states and undo toast.
 
 Phase 1 follow-ups to do in a networked dev environment (the build sandbox could not reach
 the npm tarball CDN): run `pnpm install` to commit `pnpm-lock.yaml`, then switch CI/Docker

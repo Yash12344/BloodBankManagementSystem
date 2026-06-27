@@ -1,31 +1,13 @@
 import type { Config } from "tailwindcss";
+import preset from "@bloodline/ui/tailwind-preset";
 
-// Design tokens from docs/WIREFRAMES.md. Extended into the full shadcn theme in Phase 3.
+// The design system lives in the shared preset; the web app only declares what to scan.
 const config: Config = {
-  darkMode: "class",
-  content: ["./src/**/*.{ts,tsx}"],
-  theme: {
-    extend: {
-      colors: {
-        accent: {
-          DEFAULT: "#E53935",
-          hover: "#C62828",
-          soft: "#FDECEA",
-        },
-      },
-      borderRadius: {
-        card: "16px",
-        pill: "999px",
-      },
-      boxShadow: {
-        card: "0 4px 12px rgba(0,0,0,0.06)",
-      },
-      fontFamily: {
-        sans: ["Inter", "system-ui", "sans-serif"],
-      },
-    },
-  },
-  plugins: [],
+  presets: [preset],
+  content: [
+    "./src/**/*.{ts,tsx}",
+    "../../packages/ui/src/**/*.{ts,tsx}",
+  ],
 };
 
 export default config;

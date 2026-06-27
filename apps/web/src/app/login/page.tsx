@@ -1,5 +1,7 @@
 "use client";
 
+import { Button, Card, Input, Label } from "@bloodline/ui";
+import { Heart } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ApiError } from "@/lib/api";
@@ -37,70 +39,65 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center p-6">
-      <form
-        onSubmit={onSubmit}
-        className="w-full max-w-sm rounded-card border border-zinc-200 bg-white p-8 shadow-card dark:border-zinc-800 dark:bg-zinc-950"
-      >
+    <main className="flex min-h-screen items-center justify-center bg-background p-6">
+      <Card className="w-full max-w-sm p-8">
         <div className="mb-6 flex items-center gap-2">
-          <span className="inline-flex h-9 w-9 items-center justify-center rounded-card bg-accent-soft text-lg text-accent">
-            ♥
+          <span className="inline-flex size-9 items-center justify-center rounded-card bg-primary/10 text-primary">
+            <Heart className="size-4 fill-current" />
           </span>
           <h1 className="text-xl font-semibold">BloodLine</h1>
         </div>
 
-        {!challengeId ? (
-          <>
-            <label className="mb-1 block text-sm font-medium" htmlFor="email">
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="mb-4 w-full rounded-[10px] border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-accent dark:border-zinc-700 dark:bg-zinc-900"
-            />
-            <label className="mb-1 block text-sm font-medium" htmlFor="password">
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="mb-4 w-full rounded-[10px] border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-accent dark:border-zinc-700 dark:bg-zinc-900"
-            />
-          </>
-        ) : (
-          <>
-            <p className="mb-3 text-sm text-zinc-500">Enter the 6-digit code sent to your email.</p>
-            <input
-              inputMode="numeric"
-              pattern="\d{6}"
-              maxLength={6}
-              required
-              value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-              className="mb-4 w-full rounded-[10px] border border-zinc-300 px-3 py-2 text-center text-lg tracking-[0.5em] outline-none focus:border-accent dark:border-zinc-700 dark:bg-zinc-900"
-            />
-          </>
-        )}
+        <form onSubmit={onSubmit} className="space-y-4">
+          {!challengeId ? (
+            <>
+              <div className="space-y-1.5">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  autoComplete="current-password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </div>
+            </>
+          ) : (
+            <div className="space-y-1.5">
+              <Label htmlFor="otp">Verification code</Label>
+              <p className="text-sm text-muted-foreground">Enter the 6-digit code sent to your email.</p>
+              <Input
+                id="otp"
+                inputMode="numeric"
+                pattern="\d{6}"
+                maxLength={6}
+                required
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+                className="text-center text-lg tracking-[0.5em]"
+              />
+            </div>
+          )}
 
-        {error && <p className="mb-3 text-sm text-accent">{error}</p>}
+          {error && <p className="text-sm text-destructive">{error}</p>}
 
-        <button
-          type="submit"
-          disabled={busy}
-          className="w-full rounded-[10px] bg-accent px-3 py-2 text-sm font-medium text-white transition hover:bg-accent-hover disabled:opacity-60"
-        >
-          {busy ? "Please wait…" : challengeId ? "Verify code" : "Sign in"}
-        </button>
-      </form>
+          <Button type="submit" disabled={busy} className="w-full">
+            {busy ? "Please wait…" : challengeId ? "Verify code" : "Sign in"}
+          </Button>
+        </form>
+      </Card>
     </main>
   );
 }
