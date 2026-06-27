@@ -1,0 +1,993 @@
+// BloodLine BBMS — Prisma schema
+// Implements docs/DATABASE.md. PostgreSQL. Money in integer minor units. Time = UTC.
+// IDs are UUID. Clinical/financial entities use soft delete + version for concurrency.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================ ENUMS
+
+enum BloodGroup {
+  A_POS
+  A_NEG
+  B_POS
+  B_NEG
+  AB_POS
+  AB_NEG
+  O_POS
+  O_NEG
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  INVITED
+}
+
+enum DonorStatus {
+  ACTIVE
+  DEFERRED
+  BLACKLISTED
+  INACTIVE
+}
+
+enum DeferralType {
+  TEMPORARY
+  PERMANENT
+}
+
+enum DonationType {
+  VOLUNTARY
+  REPLACEMENT
+}
+
+enum DonationSource {
+  WALK_IN
+  CAMP
+  HOSPITAL
+}
+
+enum DonationStatus {
+  COLLECTED
+  PROCESSING
+  REJECTED
+  COMPLETED
+}
+
+enum UnitStatus {
+  COLLECTED
+  PROCESSING
+  QUARANTINED
+  APPROVED
+  SEPARATED
+  REJECTED
+  DISCARDED
+}
+
+enum TestMarker {
+  PENDING
+  REACTIVE
+  NON_REACTIVE
+}
+
+enum LabResult {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ComponentType {
+  WHOLE_BLOOD
+  PRBC
+  PLATELETS
+  FFP
+  CRYO
+}
+
+enum ComponentStatus {
+  AVAILABLE
+  RESERVED
+  ISSUED
+  EXPIRED
+  DISCARDED
+  QUARANTINED
+}
+
+enum MovementType {
+  IN
+  RESERVE
+  RELEASE
+  ISSUE
+  EXPIRE
+  DISCARD
+  TRANSFER_IN
+  TRANSFER_OUT
+  RETURN
+}
+
+enum RequestChannel {
+  ONLINE
+  HOSPITAL
+  EMERGENCY
+}
+
+enum Priority {
+  CRITICAL
+  NORMAL
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  COMPLETED
+  CANCELLED
+}
+
+enum ReservationStatus {
+  HELD
+  RELEASED
+  CONSUMED
+}
+
+enum CrossMatchResult {
+  PENDING
+  COMPATIBLE
+  INCOMPATIBLE
+}
+
+enum IssueStatus {
+  ISSUED
+  RETURNED
+  CANCELLED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  UNPAID
+  PARTIAL
+  PAID
+  VOID
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  UPI
+  CHEQUE
+  BANK
+}
+
+enum CampStatus {
+  UPCOMING
+  ONGOING
+  COMPLETED
+  CANCELLED
+}
+
+enum NotificationChannel {
+  INAPP
+  EMAIL
+  SMS
+  WHATSAPP
+}
+
+enum NotificationStatus {
+  QUEUED
+  SENT
+  FAILED
+  READ
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  HALF_DAY
+  LEAVE
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// ============================================================ IDENTITY & ORG
+
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  gstin     String?
+  logoUrl   String?
+  settings  Json     @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  branches  Branch[]
+
+  @@map("organization")
+}
+
+model Branch {
+  id        String   @id @default(uuid())
+  orgId     String
+  name      String
+  code      String
+  address   String?
+  phone     String?
+  email     String?
+  timezone  String   @default("Asia/Kolkata")
+  licenseNo String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Restrict)
+
+  users         User[]
+  donors        Donor[]
+  donations     Donation[]
+  units         BloodUnit[]
+  components    BloodComponent[]
+  inventory     InventoryStock[]
+  hospitals     Hospital[]
+  patients      Patient[]
+  requests      BloodRequest[]
+  issues        Issue[]
+  invoices      Invoice[]
+  expenses      Expense[]
+  camps         Camp[]
+  priceList     PriceListItem[]
+  notifications Notification[]
+  auditLogs     AuditLog[]
+  settings      Setting[]
+
+  @@unique([orgId, code])
+  @@map("branch")
+}
+
+model Role {
+  id       String  @id @default(uuid())
+  name     String  @unique
+  isSystem Boolean @default(false)
+
+  users       User[]
+  permissions RolePermission[]
+
+  @@map("role")
+}
+
+model Permission {
+  id     String @id @default(uuid())
+  module String
+  action String
+
+  roles     RolePermission[]
+  overrides UserPermissionOverride[]
+
+  @@unique([module, action])
+  @@map("permission")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permission")
+}
+
+model User {
+  id           String     @id @default(uuid())
+  branchId     String
+  roleId       String
+  name         String
+  email        String     @unique
+  phone        String?
+  passwordHash String
+  status       UserStatus @default(ACTIVE)
+  mfaEnabled   Boolean    @default(false)
+  lastLoginAt  DateTime?
+  deletedAt    DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  permissionOverrides UserPermissionOverride[]
+  staffProfile        StaffProfile?
+  refreshTokens       RefreshToken[]
+  auditLogs           AuditLog[]
+  notifications       Notification[]
+  collectedDonations  Donation[]      @relation("collectedBy")
+  testedLabs          LabTest[]       @relation("testedBy")
+  verifiedLabs        LabTest[]       @relation("verifiedBy")
+  approvedRequests    BloodRequest[]  @relation("approvedBy")
+  crossMatches        CrossMatch[]
+  issuedIssues        Issue[]         @relation("issuedBy")
+  receivedPayments    Payment[]
+
+  @@index([branchId])
+  @@index([roleId])
+  @@map("user")
+}
+
+model UserPermissionOverride {
+  userId       String
+  permissionId String
+  allow        Boolean
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([userId, permissionId])
+  @@map("user_permission_override")
+}
+
+model RefreshToken {
+  id         String    @id @default(uuid())
+  userId     String
+  tokenHash  String    @unique
+  familyId   String
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([familyId])
+  @@map("refresh_token")
+}
+
+// ============================================================ STAFF
+
+model StaffProfile {
+  id         String   @id @default(uuid())
+  userId     String   @unique
+  department String?
+  designation String?
+  joinDate   DateTime?
+  createdAt  DateTime @default(now())
+
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attendance Attendance[]
+  leaves     LeaveRequest[]
+
+  @@map("staff_profile")
+}
+
+model Attendance {
+  id       String           @id @default(uuid())
+  staffId  String
+  date     DateTime         @db.Date
+  checkIn  DateTime?
+  checkOut DateTime?
+  status   AttendanceStatus @default(PRESENT)
+
+  staff StaffProfile @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@unique([staffId, date])
+  @@map("attendance")
+}
+
+model LeaveRequest {
+  id        String      @id @default(uuid())
+  staffId   String
+  fromDate  DateTime    @db.Date
+  toDate    DateTime    @db.Date
+  type      String
+  reason    String?
+  status    LeaveStatus @default(PENDING)
+  createdAt DateTime    @default(now())
+
+  staff StaffProfile @relation(fields: [staffId], references: [id], onDelete: Cascade)
+
+  @@index([staffId])
+  @@map("leave_request")
+}
+
+// ============================================================ DONOR & COLLECTION
+
+model Donor {
+  id               String      @id @default(uuid())
+  branchId         String
+  donorCode        String
+  photoUrl         String?
+  name             String
+  dob              DateTime    @db.Date
+  gender           Gender
+  bloodGroup       BloodGroup
+  weightKg         Float
+  mobile           String
+  email            String?
+  address          String?
+  occupation       String?
+  medicalHistory   String?
+  govtIdType       String?
+  govtIdNo         String?
+  emergencyContact String?
+  status           DonorStatus @default(ACTIVE)
+  donationCount    Int         @default(0)
+  lastDonationAt   DateTime?
+  nextEligibleAt   DateTime?
+  deletedAt        DateTime?
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+
+  branch    Branch     @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  donations Donation[]
+  deferrals Deferral[]
+
+  @@unique([branchId, donorCode])
+  @@index([branchId, bloodGroup])
+  @@index([mobile])
+  @@index([govtIdNo])
+  @@index([nextEligibleAt])
+  @@map("donor")
+}
+
+model Deferral {
+  id        String       @id @default(uuid())
+  donorId   String
+  type      DeferralType
+  reason    String
+  startDate DateTime     @default(now())
+  until     DateTime?
+  byUserId  String?
+  createdAt DateTime     @default(now())
+
+  donor Donor @relation(fields: [donorId], references: [id], onDelete: Cascade)
+
+  @@index([donorId])
+  @@map("deferral")
+}
+
+model Camp {
+  id            String     @id @default(uuid())
+  branchId      String
+  name          String
+  location      String
+  scheduledDate DateTime
+  organizer     String?
+  status        CampStatus @default(UPCOMING)
+  revenueMinor  Int        @default(0)
+  notes         String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  branch     Branch          @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  donations  Donation[]
+  volunteers CampVolunteer[]
+  expenses   CampExpense[]
+  photos     CampPhoto[]
+
+  @@index([branchId, scheduledDate])
+  @@map("camp")
+}
+
+model CampVolunteer {
+  id     String  @id @default(uuid())
+  campId String
+  name   String
+  role   String?
+  phone  String?
+  camp   Camp    @relation(fields: [campId], references: [id], onDelete: Cascade)
+
+  @@index([campId])
+  @@map("camp_volunteer")
+}
+
+model CampExpense {
+  id          String @id @default(uuid())
+  campId      String
+  head        String
+  amountMinor Int
+  camp        Camp   @relation(fields: [campId], references: [id], onDelete: Cascade)
+
+  @@index([campId])
+  @@map("camp_expense")
+}
+
+model CampPhoto {
+  id     String @id @default(uuid())
+  campId String
+  url    String
+  camp   Camp   @relation(fields: [campId], references: [id], onDelete: Cascade)
+
+  @@index([campId])
+  @@map("camp_photo")
+}
+
+model Donation {
+  id               String         @id @default(uuid())
+  branchId         String
+  donorId          String
+  campId           String?
+  collectedByUserId String?
+  donationType     DonationType   @default(VOLUNTARY)
+  source           DonationSource @default(WALK_IN)
+  collectedAt      DateTime       @default(now())
+  volumeMl         Int
+  status           DonationStatus @default(COLLECTED)
+  createdAt        DateTime       @default(now())
+
+  branch      Branch     @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  donor       Donor      @relation(fields: [donorId], references: [id], onDelete: Restrict)
+  camp        Camp?      @relation(fields: [campId], references: [id], onDelete: SetNull)
+  collectedBy User?      @relation("collectedBy", fields: [collectedByUserId], references: [id], onDelete: SetNull)
+  unit        BloodUnit?
+
+  @@index([branchId, status])
+  @@index([donorId])
+  @@index([campId])
+  @@map("donation")
+}
+
+// ============================================================ UNIT · LAB · COMPONENT
+
+model BloodUnit {
+  id         String     @id @default(uuid())
+  branchId   String
+  donationId String     @unique
+  bagNumber  String     @unique
+  bloodGroup BloodGroup
+  volumeMl   Int
+  status     UnitStatus @default(COLLECTED)
+  version    Int        @default(0)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  branch     Branch           @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  donation   Donation         @relation(fields: [donationId], references: [id], onDelete: Restrict)
+  labTest    LabTest?
+  components BloodComponent[]
+
+  @@index([status])
+  @@index([branchId])
+  @@map("blood_unit")
+}
+
+model LabTest {
+  id               String     @id @default(uuid())
+  unitId           String     @unique
+  hb               Float?
+  hiv              TestMarker @default(PENDING)
+  hbsag            TestMarker @default(PENDING)
+  hcv              TestMarker @default(PENDING)
+  malaria          TestMarker @default(PENDING)
+  syphilis         TestMarker @default(PENDING)
+  forwardGroup     String?
+  reverseGroup     String?
+  rh               String?
+  antibodyScreen   String?
+  result           LabResult  @default(PENDING)
+  testedByUserId   String?
+  verifiedByUserId String?
+  comments         String?
+  approvedAt       DateTime?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  unit       BloodUnit @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  testedBy   User?     @relation("testedBy", fields: [testedByUserId], references: [id], onDelete: SetNull)
+  verifiedBy User?     @relation("verifiedBy", fields: [verifiedByUserId], references: [id], onDelete: SetNull)
+
+  @@map("lab_test")
+}
+
+model BloodComponent {
+  id              String          @id @default(uuid())
+  branchId        String
+  unitId          String
+  type            ComponentType
+  bloodGroup      BloodGroup
+  barcode         String          @unique
+  volumeMl        Int
+  storageTemp     String?
+  storageLocation String?
+  preparedAt      DateTime        @default(now())
+  expiresAt       DateTime
+  status          ComponentStatus @default(AVAILABLE)
+  version         Int             @default(0)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  branch       Branch              @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  unit         BloodUnit           @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  movements    InventoryMovement[]
+  reservations Reservation[]
+  crossMatches CrossMatch[]
+  issueItem    IssueItem?
+
+  @@index([branchId, bloodGroup, type, status])
+  @@index([expiresAt])
+  @@index([unitId])
+  @@map("blood_component")
+}
+
+model InventoryStock {
+  id            String        @id @default(uuid())
+  branchId      String
+  bloodGroup    BloodGroup
+  componentType ComponentType
+  available     Int           @default(0)
+  reserved      Int           @default(0)
+  issued        Int           @default(0)
+  expired       Int           @default(0)
+  discarded     Int           @default(0)
+  version       Int           @default(0)
+  updatedAt     DateTime      @updatedAt
+
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@unique([branchId, bloodGroup, componentType])
+  @@map("inventory_stock")
+}
+
+model InventoryMovement {
+  id          String       @id @default(uuid())
+  componentId String
+  type        MovementType
+  qty         Int          @default(1)
+  refType     String?
+  refId       String?
+  byUserId    String?
+  createdAt   DateTime     @default(now())
+
+  component BloodComponent @relation(fields: [componentId], references: [id], onDelete: Cascade)
+
+  @@index([componentId, createdAt])
+  @@map("inventory_movement")
+}
+
+// ============================================================ HOSPITAL · PATIENT · REQUEST · ISSUE
+
+model Hospital {
+  id               String   @id @default(uuid())
+  branchId         String
+  name             String
+  address          String?
+  phone            String?
+  email            String?
+  gstin            String?
+  creditLimitMinor Int      @default(0)
+  outstandingMinor Int      @default(0)
+  status           String   @default("ACTIVE")
+  deletedAt        DateTime?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  branch   Branch           @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  doctors  HospitalDoctor[]
+  patients Patient[]
+  requests BloodRequest[]
+  issues   Issue[]
+  invoices Invoice[]
+
+  @@index([branchId])
+  @@map("hospital")
+}
+
+model HospitalDoctor {
+  id             String  @id @default(uuid())
+  hospitalId     String
+  name           String
+  phone          String?
+  specialization String?
+  regNo          String?
+
+  hospital Hospital       @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  patients Patient[]
+  requests BloodRequest[]
+
+  @@index([hospitalId])
+  @@map("hospital_doctor")
+}
+
+model Patient {
+  id         String      @id @default(uuid())
+  branchId   String
+  hospitalId String?
+  doctorId   String?
+  name       String
+  age        Int?
+  gender     Gender?
+  bloodGroup BloodGroup?
+  diagnosis  String?
+  notes      String?
+  status     String      @default("ACTIVE")
+  deletedAt  DateTime?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+
+  branch   Branch          @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  hospital Hospital?       @relation(fields: [hospitalId], references: [id], onDelete: SetNull)
+  doctor   HospitalDoctor? @relation(fields: [doctorId], references: [id], onDelete: SetNull)
+  requests BloodRequest[]
+  issues   Issue[]
+
+  @@index([branchId])
+  @@index([hospitalId])
+  @@map("patient")
+}
+
+model BloodRequest {
+  id               String         @id @default(uuid())
+  branchId         String
+  patientId        String?
+  hospitalId       String?
+  doctorId         String?
+  channel          RequestChannel @default(HOSPITAL)
+  priority         Priority       @default(NORMAL)
+  bloodGroup       BloodGroup
+  componentType    ComponentType
+  unitsRequested   Int
+  requiredBy       DateTime?
+  status           RequestStatus  @default(PENDING)
+  approvedByUserId String?
+  rejectReason     String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  branch     Branch          @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  patient    Patient?        @relation(fields: [patientId], references: [id], onDelete: SetNull)
+  hospital   Hospital?       @relation(fields: [hospitalId], references: [id], onDelete: SetNull)
+  doctor     HospitalDoctor? @relation(fields: [doctorId], references: [id], onDelete: SetNull)
+  approvedBy User?           @relation("approvedBy", fields: [approvedByUserId], references: [id], onDelete: SetNull)
+
+  reservations Reservation[]
+  crossMatches CrossMatch[]
+  issues       Issue[]
+
+  @@index([branchId, status, priority])
+  @@index([requiredBy])
+  @@map("blood_request")
+}
+
+model Reservation {
+  id          String            @id @default(uuid())
+  requestId   String
+  componentId String
+  status      ReservationStatus @default(HELD)
+  expiresAt   DateTime?
+  createdAt   DateTime          @default(now())
+
+  request   BloodRequest   @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  component BloodComponent @relation(fields: [componentId], references: [id], onDelete: Restrict)
+
+  @@index([requestId, status])
+  @@index([expiresAt])
+  @@map("reservation")
+}
+
+model CrossMatch {
+  id              String           @id @default(uuid())
+  requestId       String
+  componentId     String
+  patientSampleRef String?
+  result          CrossMatchResult @default(PENDING)
+  technicianId    String?
+  performedAt     DateTime         @default(now())
+
+  request    BloodRequest   @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  component  BloodComponent @relation(fields: [componentId], references: [id], onDelete: Restrict)
+  technician User?          @relation(fields: [technicianId], references: [id], onDelete: SetNull)
+  issueItems IssueItem[]
+
+  @@index([requestId])
+  @@map("cross_match")
+}
+
+model Issue {
+  id             String      @id @default(uuid())
+  branchId       String
+  requestId      String
+  patientId      String?
+  hospitalId     String?
+  issuedByUserId String?
+  issuedAt       DateTime    @default(now())
+  status         IssueStatus @default(ISSUED)
+  slipUrl        String?
+
+  branch   Branch       @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  request  BloodRequest @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  patient  Patient?     @relation(fields: [patientId], references: [id], onDelete: SetNull)
+  hospital Hospital?    @relation(fields: [hospitalId], references: [id], onDelete: SetNull)
+  issuedBy User?        @relation("issuedBy", fields: [issuedByUserId], references: [id], onDelete: SetNull)
+  items    IssueItem[]
+  invoice  Invoice?
+
+  @@index([branchId])
+  @@index([requestId])
+  @@map("issue")
+}
+
+model IssueItem {
+  id           String  @id @default(uuid())
+  issueId      String
+  componentId  String  @unique
+  crossMatchId String?
+  priceMinor   Int     @default(0)
+
+  issue      Issue          @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  component  BloodComponent @relation(fields: [componentId], references: [id], onDelete: Restrict)
+  crossMatch CrossMatch?    @relation(fields: [crossMatchId], references: [id], onDelete: SetNull)
+
+  @@index([issueId])
+  @@map("issue_item")
+}
+
+// ============================================================ BILLING
+
+model Invoice {
+  id            String        @id @default(uuid())
+  branchId      String
+  issueId       String?       @unique
+  hospitalId    String?
+  patientId     String?
+  number        String
+  status        InvoiceStatus @default(DRAFT)
+  subtotalMinor Int           @default(0)
+  gstMinor      Int           @default(0)
+  totalMinor    Int           @default(0)
+  balanceMinor  Int           @default(0)
+  version       Int           @default(0)
+  issuedAt      DateTime      @default(now())
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  branch   Branch        @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  issue    Issue?        @relation(fields: [issueId], references: [id], onDelete: SetNull)
+  hospital Hospital?     @relation(fields: [hospitalId], references: [id], onDelete: SetNull)
+  lines    InvoiceLine[]
+  payments Payment[]
+
+  @@unique([branchId, number])
+  @@index([status])
+  @@index([hospitalId])
+  @@map("invoice")
+}
+
+model InvoiceLine {
+  id             String @id @default(uuid())
+  invoiceId      String
+  description    String
+  qty            Int    @default(1)
+  unitPriceMinor Int
+  gstRate        Float  @default(0)
+  amountMinor    Int
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@map("invoice_line")
+}
+
+model Payment {
+  id               String        @id @default(uuid())
+  invoiceId        String
+  method           PaymentMethod
+  amountMinor      Int
+  idempotencyKey   String        @unique
+  receivedByUserId String?
+  receivedAt       DateTime      @default(now())
+  reference        String?
+
+  invoice    Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  receivedBy User?   @relation(fields: [receivedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([invoiceId])
+  @@map("payment")
+}
+
+model Expense {
+  id          String   @id @default(uuid())
+  branchId    String
+  head        String
+  amountMinor Int
+  spentAt     DateTime @default(now())
+  byUserId    String?
+  notes       String?
+
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  @@index([branchId, spentAt])
+  @@map("expense")
+}
+
+model PriceListItem {
+  id            String        @id @default(uuid())
+  branchId      String
+  componentType ComponentType
+  bloodGroup    BloodGroup?
+  priceMinor    Int
+  gstRate       Float         @default(0)
+
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@unique([branchId, componentType, bloodGroup])
+  @@map("price_list_item")
+}
+
+// ============================================================ CROSS-CUTTING
+
+model Notification {
+  id        String              @id @default(uuid())
+  branchId  String
+  userId    String?
+  channel   NotificationChannel @default(INAPP)
+  type      String
+  payload   Json                @default("{}")
+  status    NotificationStatus  @default(QUEUED)
+  createdAt DateTime            @default(now())
+  sentAt    DateTime?
+  readAt    DateTime?
+
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  user   User?  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([branchId, type, createdAt])
+  @@map("notification")
+}
+
+model NotificationOutbox {
+  id            String   @id @default(uuid())
+  dedupeKey     String   @unique
+  payload       Json
+  attempts      Int      @default(0)
+  nextAttemptAt DateTime @default(now())
+  status        String   @default("PENDING")
+  createdAt     DateTime @default(now())
+
+  @@index([status, nextAttemptAt])
+  @@map("notification_outbox")
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  branchId  String?
+  userId    String?
+  entity    String
+  entityId  String
+  action    String
+  before    Json?
+  after     Json?
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  branch Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([entity, entityId])
+  @@index([branchId, createdAt])
+  @@map("audit_log")
+}
+
+model Setting {
+  id        String   @id @default(uuid())
+  branchId  String?
+  key       String
+  value     Json     @default("{}")
+  updatedAt DateTime @updatedAt
+
+  branch Branch? @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@unique([branchId, key])
+  @@map("setting")
+}
