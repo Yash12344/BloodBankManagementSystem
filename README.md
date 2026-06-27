@@ -117,6 +117,15 @@ skeleton landing page.
   step — blocked for ineligible donors unless an explicit reasoned override is given.
   Web: donors screen (search/filter, register dialog, detail drawer with eligibility and a
   permission-gated "Record donation"). Hermetic tests for the eligibility engine and CSV.
+- **Phase 5 — Lab, Components & Inventory** ✅ the safety spine. Lab worklist + TTI panel
+  with **reactive auto-quarantine**, approval gated on all-non-reactive (reactive can never
+  reach stock), and reactive rejection that permanently defers the donor. Component
+  separation of approved units into PRBC/FFP/Platelets/Cryo/Whole with barcodes, type-based
+  expiry and storage — written atomically with the movement ledger + cached counters
+  (optimistic concurrency). Real-time inventory matrix (group × component, colour-coded
+  levels), expiring-soon, movement ledger, **FEFO** selection, and an hourly low-stock job
+  (plus the existing nightly expiry sweep). Web: colour-coded inventory grid with cell
+  drawer, and a lab worklist with the screening/approve/reject flow.
 
 Phase 1 follow-ups to do in a networked dev environment (the build sandbox could not reach
 the npm tarball CDN): run `pnpm install` to commit `pnpm-lock.yaml`, then switch CI/Docker

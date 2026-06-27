@@ -1,6 +1,7 @@
 import { Worker } from "bullmq";
 import { QUEUE, scheduleRepeatableJobs } from "./jobs/queues.js";
 import { runExpirySweep } from "./jobs/expirySweep.js";
+import { runLowStockCheck } from "./jobs/lowStock.js";
 import { redis } from "./lib/redis.js";
 import { logger } from "./lib/logger.js";
 
@@ -27,11 +28,20 @@ async function main() {
     logger.error({ jobId: job?.id, err }, "expiry-sweep job failed"),
   );
 
+  const lowStockWorker = new Worker(
+    QUEUE.lowStock,
+    async () => ({ raised: await runLowStockCheck() }),
+    { connection: redis, concurrency: 1 },
+  );
+  lowStockWorker.on("failed", (job, err) =>
+    logger.error({ jobId: job?.id, err }, "low-stock job failed"),
+  );
+
   logger.info("BloodLine worker started");
 
   const shutdown = async (signal: string) => {
     logger.info(`${signal} received, closing worker...`);
-    await expiryWorker.close();
+    await Promise.all([expiryWorker.close(), lowStockWorker.close()]);
     redis.disconnect();
     process.exit(0);
   };
