@@ -135,6 +135,12 @@ skeleton landing page.
   reservations, completing the request, and generating a DRAFT invoice from the price list.
   Web: requests screen (create, approve, and a fulfil drawer that cross-matches then issues)
   and a patients screen. Tests for invoice math (integer minor units, per-line GST rounding).
+- **Phase 7 — Hospitals, Camps & Staff** ✅ hospitals with doctors, request/issue history
+  and live outstanding (sum of unpaid/partial invoice balances); camp lifecycle with
+  volunteers/expenses, donor reminders, and **statistics that roll up the collections linked
+  to each camp** (count, volume, unique donors, finance); staff profiles, per-day attendance,
+  leave requests/approval, and per-user activity from the audit log. Web: hospitals, camps
+  (with a stats drawer) and staff screens. Test for camp finance summary.
 
 Phase 1 follow-ups to do in a networked dev environment (the build sandbox could not reach
 the npm tarball CDN): run `pnpm install` to commit `pnpm-lock.yaml`, then switch CI/Docker
