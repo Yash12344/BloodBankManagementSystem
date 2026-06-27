@@ -13,6 +13,8 @@ import { requireAuth } from "./middleware/auth.js";
 import { requirePermission } from "./middleware/rbac.js";
 import { healthRouter } from "./routes/health.js";
 import { authRouter } from "./modules/auth/auth.routes.js";
+import { donorRouter } from "./modules/donors/donor.routes.js";
+import { collectionRouter } from "./modules/collection/collection.routes.js";
 
 /**
  * Builds the Express application with the baseline production middleware stack.
@@ -65,6 +67,8 @@ export function createApp(): Express {
   const v1 = express.Router();
   v1.get("/", (_req, res) => res.json({ name: "BloodLine API", version: "v1", status: "ok" }));
   v1.use("/auth", authRouter);
+  v1.use("/donors", donorRouter);
+  v1.use("/collections", collectionRouter);
 
   // Example of a permission-guarded route; every feature module follows this pattern.
   v1.get("/me/permissions", requireAuth, requirePermission("dashboard", "view"), (req, res) => {

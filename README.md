@@ -110,6 +110,13 @@ skeleton landing page.
   loading/empty/error `DataState`). Dashboard shell with collapsible sidebar (icon +
   tooltip mode, permission-filtered), topbar, dark-mode toggle, ⌘K command palette, and a
   dashboard demonstrating KPI cards, the detail-drawer pattern, async states and undo toast.
+- **Phase 4 — Donor & Collection** ✅ donor CRUD with de-duplication, the eligibility
+  engine (age/weight/interval/deferral gates, next-eligible computation), deferrals,
+  donor card (QR), CSV import/export, and a transactional collection flow that creates the
+  donation + blood unit + **PENDING lab record** and updates donor counters in one atomic
+  step — blocked for ineligible donors unless an explicit reasoned override is given.
+  Web: donors screen (search/filter, register dialog, detail drawer with eligibility and a
+  permission-gated "Record donation"). Hermetic tests for the eligibility engine and CSV.
 
 Phase 1 follow-ups to do in a networked dev environment (the build sandbox could not reach
 the npm tarball CDN): run `pnpm install` to commit `pnpm-lock.yaml`, then switch CI/Docker
