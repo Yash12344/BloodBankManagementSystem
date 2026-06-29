@@ -1,5 +1,7 @@
-import { BLOOD_GROUP_LABEL } from "@bloodline/types";
+import { BLOOD_GROUPS, BLOOD_GROUP_LABEL } from "@bloodline/types";
 import { prisma } from "../../lib/prisma.js";
+
+const CRITICAL_GROUP_THRESHOLD = 2;
 
 function startOfTodayUtc(): Date {
   const n = new Date();
@@ -9,18 +11,26 @@ function startOfTodayUtc(): Date {
 /** KPI snapshot for the dashboard header cards. */
 export async function summary(branchId: string) {
   const today = startOfTodayUtc();
+  const endOfToday = new Date(today.getTime() + 86_400_000);
   const in7 = new Date(Date.now() + 7 * 86_400_000);
 
-  const [collections, issued, openRequests, emergencies, pendingTests, revenue, stock, expiring] = await Promise.all([
-    prisma.donation.count({ where: { branchId, collectedAt: { gte: today } } }),
-    prisma.issue.count({ where: { branchId, issuedAt: { gte: today } } }),
-    prisma.bloodRequest.count({ where: { branchId, status: "PENDING" } }),
-    prisma.bloodRequest.count({ where: { branchId, status: "PENDING", priority: "CRITICAL" } }),
-    prisma.labTest.count({ where: { unit: { branchId }, result: "PENDING" } }),
-    prisma.payment.aggregate({ where: { invoice: { branchId }, receivedAt: { gte: today } }, _sum: { amountMinor: true } }),
-    prisma.inventoryStock.aggregate({ where: { branchId }, _sum: { available: true } }),
-    prisma.bloodComponent.count({ where: { branchId, status: "AVAILABLE", expiresAt: { lte: in7 } } }),
-  ]);
+  const [collections, issued, openRequests, emergencies, pendingTests, revenue, stock, expiring, expiringToday, levels] =
+    await Promise.all([
+      prisma.donation.count({ where: { branchId, collectedAt: { gte: today } } }),
+      prisma.issue.count({ where: { branchId, issuedAt: { gte: today } } }),
+      prisma.bloodRequest.count({ where: { branchId, status: "PENDING" } }),
+      prisma.bloodRequest.count({ where: { branchId, status: "PENDING", priority: "CRITICAL" } }),
+      prisma.labTest.count({ where: { unit: { branchId }, result: "PENDING" } }),
+      prisma.payment.aggregate({ where: { invoice: { branchId }, receivedAt: { gte: today } }, _sum: { amountMinor: true } }),
+      prisma.inventoryStock.aggregate({ where: { branchId }, _sum: { available: true } }),
+      prisma.bloodComponent.count({ where: { branchId, status: "AVAILABLE", expiresAt: { lte: in7 } } }),
+      prisma.bloodComponent.count({ where: { branchId, status: "AVAILABLE", expiresAt: { lte: endOfToday } } }),
+      prisma.inventoryStock.groupBy({ by: ["bloodGroup"], where: { branchId }, _sum: { available: true } }),
+    ]);
+
+  // A group is critical if its total available stock is at/below the threshold — including
+  // groups with no stock row at all (which never appear in the groupBy result).
+  const healthy = levels.filter((l) => (l._sum.available ?? 0) > CRITICAL_GROUP_THRESHOLD).length;
 
   return {
     todaysCollection: collections,
@@ -31,7 +41,73 @@ export async function summary(branchId: string) {
     todaysRevenueMinor: revenue._sum.amountMinor ?? 0,
     totalAvailableUnits: stock._sum.available ?? 0,
     expiringSoon: expiring,
+    expiringToday,
+    criticalGroups: BLOOD_GROUPS.length - healthy,
   };
+}
+
+/** Per-blood-group available levels with a critical flag, for the dashboard stock strip. */
+export async function bloodGroupLevels(branchId: string) {
+  const grouped = await prisma.inventoryStock.groupBy({ by: ["bloodGroup"], where: { branchId }, _sum: { available: true } });
+  const map = new Map(grouped.map((g) => [g.bloodGroup, g._sum.available ?? 0] as const));
+  return BLOOD_GROUPS.map((g) => {
+    const available = map.get(g) ?? 0;
+    return { code: g, bloodGroup: BLOOD_GROUP_LABEL[g], available, critical: available <= CRITICAL_GROUP_THRESHOLD };
+  });
+}
+
+/** Real, unified recent-activity feed (collections + issues), newest first. */
+export async function recentActivity(branchId: string, limit = 12) {
+  const [collections, issues] = await Promise.all([
+    prisma.donation.findMany({
+      where: { branchId },
+      orderBy: { collectedAt: "desc" },
+      take: limit,
+      select: { id: true, collectedAt: true, volumeMl: true, donor: { select: { name: true, bloodGroup: true } } },
+    }),
+    prisma.issue.findMany({
+      where: { branchId },
+      orderBy: { issuedAt: "desc" },
+      take: limit,
+      select: { id: true, issuedAt: true, hospital: { select: { name: true } }, patient: { select: { name: true } }, _count: { select: { items: true } } },
+    }),
+  ]);
+
+  const items = [
+    ...collections.map((c) => ({
+      id: `col-${c.id}`,
+      kind: "collection" as const,
+      at: c.collectedAt.toISOString(),
+      text: `${c.donor.name} donated ${c.volumeMl} ml (${BLOOD_GROUP_LABEL[c.donor.bloodGroup]})`,
+    })),
+    ...issues.map((i) => ({
+      id: `iss-${i.id}`,
+      kind: "issue" as const,
+      at: i.issuedAt.toISOString(),
+      text: `Issued ${i._count.items} unit(s) to ${i.hospital?.name ?? i.patient?.name ?? "—"}`,
+    })),
+  ];
+  items.sort((a, b) => (a.at < b.at ? 1 : -1));
+  return items.slice(0, limit);
+}
+
+/** Real units expiring within `days`, soonest first — FEFO candidates for the dashboard. */
+export async function expiringUnits(branchId: string, days = 7, limit = 10) {
+  const until = new Date(Date.now() + days * 86_400_000);
+  const comps = await prisma.bloodComponent.findMany({
+    where: { branchId, status: "AVAILABLE", expiresAt: { lte: until } },
+    orderBy: { expiresAt: "asc" },
+    take: limit,
+    select: { id: true, barcode: true, type: true, bloodGroup: true, expiresAt: true, storageLocation: true },
+  });
+  return comps.map((c) => ({
+    id: c.id,
+    barcode: c.barcode,
+    type: c.type,
+    bloodGroup: BLOOD_GROUP_LABEL[c.bloodGroup],
+    storageLocation: c.storageLocation,
+    expiresAt: c.expiresAt.toISOString(),
+  }));
 }
 
 /** Daily collection counts for the last `days` days (zero-filled). */

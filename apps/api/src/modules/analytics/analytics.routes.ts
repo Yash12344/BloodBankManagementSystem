@@ -13,10 +13,15 @@ function branch(req: Request): string {
 export const analyticsRouter = Router();
 analyticsRouter.use(requireAuth);
 
-// Dashboard summary is available to anyone who can see the dashboard.
-analyticsRouter.get("/summary", requirePermission("dashboard", "view"), asyncHandler(async (req: Request, res: Response) => {
+// Dashboard data is available to anyone who can see the dashboard.
+const dash = requirePermission("dashboard", "view");
+analyticsRouter.get("/summary", dash, asyncHandler(async (req: Request, res: Response) => {
   res.json(await a.summary(branch(req)));
 }));
+analyticsRouter.get("/blood-group-levels", dash, asyncHandler(async (req, res) => res.json({ data: await a.bloodGroupLevels(branch(req)) })));
+analyticsRouter.get("/recent-activity", dash, asyncHandler(async (req, res) => res.json({ data: await a.recentActivity(branch(req)) })));
+analyticsRouter.get("/expiring-units", dash, asyncHandler(async (req, res) => res.json({ data: await a.expiringUnits(branch(req)) })));
+analyticsRouter.get("/collection-trends-dashboard", dash, asyncHandler(async (req, res) => res.json({ data: await a.collectionTrends(branch(req)) })));
 
 const view = requirePermission("analytics", "view");
 analyticsRouter.get("/collection-trends", view, asyncHandler(async (req, res) => res.json({ data: await a.collectionTrends(branch(req)) })));

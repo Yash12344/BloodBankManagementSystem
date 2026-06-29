@@ -2,7 +2,6 @@
 
 import {
   Badge,
-  Button,
   Card,
   CardContent,
   CardDescription,
@@ -10,14 +9,10 @@ import {
   CardTitle,
   DataState,
   EmptyState,
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-  toast,
+  ListSkeleton,
 } from "@bloodline/ui";
-import { Droplets, Send, TriangleAlert } from "lucide-react";
+import { Activity as ActivityIcon, Droplet, Send, TriangleAlert } from "lucide-react";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/page-header";
 import { api } from "@/lib/api";
@@ -33,109 +28,182 @@ interface Summary {
   todaysRevenueMinor: number;
   totalAvailableUnits: number;
   expiringSoon: number;
+  expiringToday: number;
+  criticalGroups: number;
 }
 
-interface Kpi {
-  label: string;
-  value: string;
-  tone?: "destructive";
-}
-
-function kpisFrom(s: Summary): Kpi[] {
-  return [
-    { label: "Today's collection", value: String(s.todaysCollection) },
-    { label: "Blood issued", value: String(s.todaysIssued) },
-    { label: "Open requests", value: String(s.openRequests) },
-    { label: "Emergency", value: String(s.emergencies), tone: s.emergencies > 0 ? "destructive" : undefined },
-    { label: "Pending tests", value: String(s.pendingTests) },
-    { label: "Today's revenue", value: formatMinor(s.todaysRevenueMinor) },
-  ];
+interface GroupLevel {
+  code: string;
+  bloodGroup: string;
+  available: number;
+  critical: boolean;
 }
 
 interface Activity {
   id: string;
-  text: string;
+  kind: "collection" | "issue";
   at: string;
+  text: string;
 }
 
-const SAMPLE: Activity[] = [
-  { id: "1", text: "Issued 2× PRBC to Apollo Hospital", at: "10:24" },
-  { id: "2", text: "Lab approved unit #B2381 (O+)", at: "10:02" },
-  { id: "3", text: "Donor R. Mehta collected — 450ml", at: "09:40" },
-];
+interface ExpiringUnit {
+  id: string;
+  barcode: string;
+  type: string;
+  bloodGroup: string;
+  storageLocation: string | null;
+  expiresAt: string;
+}
+
+interface Trend {
+  date: string;
+  count: number;
+}
+
+function Kpi({ label, value, tone, href }: { label: string; value: string; tone?: "destructive" | "warning"; href?: string }) {
+  const body = (
+    <Card className={tone ? "border-l-4 border-l-current " + (tone === "destructive" ? "text-destructive" : "text-warning") : undefined}>
+      <CardContent className="p-4">
+        <div className="text-xs text-muted-foreground">{label}</div>
+        <div className="mt-1 text-2xl font-semibold text-foreground">{value}</div>
+      </CardContent>
+    </Card>
+  );
+  return href ? (
+    <Link href={href} className="transition-opacity hover:opacity-80">
+      {body}
+    </Link>
+  ) : (
+    body
+  );
+}
+
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.round(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.round(hrs / 24)}d ago`;
+}
+
+function daysUntil(iso: string): number {
+  return Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000);
+}
+
+function TrendBars({ values }: { values: number[] }) {
+  const max = Math.max(1, ...values);
+  return (
+    <div className="flex h-24 items-end gap-0.5">
+      {values.map((v, i) => (
+        <div
+          key={i}
+          className="flex-1 rounded-t bg-primary/80"
+          style={{ height: `${(v / max) * 100}%`, minHeight: v > 0 ? "2px" : "0" }}
+          title={`${v}`}
+        />
+      ))}
+    </div>
+  );
+}
 
 export default function DashboardPage() {
   const { user } = useAuth();
-
   const [summary, setSummary] = useState<Summary | null>(null);
-
-  // Demonstrate the async DataState pattern: skeleton → data.
-  const [loading, setLoading] = useState(true);
-  const [activity, setActivity] = useState<Activity[]>([]);
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [levels, setLevels] = useState<GroupLevel[]>();
+  const [activity, setActivity] = useState<Activity[]>();
+  const [expiring, setExpiring] = useState<ExpiringUnit[]>();
+  const [trend, setTrend] = useState<Trend[]>();
 
   useEffect(() => {
     api<Summary>("/analytics/summary").then(setSummary).catch(() => setSummary(null));
-    const t = setTimeout(() => {
-      setActivity(SAMPLE);
-      setLoading(false);
-    }, 600);
-    return () => clearTimeout(t);
+    api<{ data: GroupLevel[] }>("/analytics/blood-group-levels").then((r) => setLevels(r.data)).catch(() => setLevels([]));
+    api<{ data: Activity[] }>("/analytics/recent-activity").then((r) => setActivity(r.data)).catch(() => setActivity([]));
+    api<{ data: ExpiringUnit[] }>("/analytics/expiring-units").then((r) => setExpiring(r.data)).catch(() => setExpiring([]));
+    api<{ data: Trend[] }>("/analytics/collection-trends-dashboard").then((r) => setTrend(r.data)).catch(() => setTrend([]));
   }, []);
-
-  const kpis = summary ? kpisFrom(summary) : [];
 
   return (
     <>
-      <PageHeader
-        title={`Welcome, ${user?.name ?? ""}`}
-        description="Live operational snapshot across the bank."
-        actions={
-          <Button
-            onClick={() =>
-              toast("Draft saved", {
-                description: "Undo within 5 seconds",
-                action: { label: "Undo", onClick: () => toast.success("Reverted") },
-              })
-            }
-          >
-            Quick action
-          </Button>
-        }
-      />
+      <PageHeader title={`Welcome, ${user?.name ?? ""}`} description="Live operational snapshot across the bank." />
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-        {kpis.map((k) => (
-          <Card key={k.label}>
-            <CardContent className="p-4">
-              <div className="text-xs text-muted-foreground">{k.label}</div>
-              <div className="mt-1 flex items-center gap-2">
-                <span className="text-2xl font-semibold">{k.value}</span>
-                {k.tone === "destructive" && Number(k.value) > 0 && <Badge variant="destructive">live</Badge>}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8">
+        {summary ? (
+          <>
+            <Kpi label="Available units" value={String(summary.totalAvailableUnits)} href="/inventory" />
+            <Kpi label="Collected today" value={String(summary.todaysCollection)} href="/collection" />
+            <Kpi label="Issued today" value={String(summary.todaysIssued)} href="/issue" />
+            <Kpi label="Open requests" value={String(summary.openRequests)} href="/requests" />
+            <Kpi label="Emergencies" value={String(summary.emergencies)} tone={summary.emergencies > 0 ? "destructive" : undefined} href="/requests" />
+            <Kpi label="Pending lab tests" value={String(summary.pendingTests)} href="/lab" />
+            <Kpi label="Expiring today" value={String(summary.expiringToday)} tone={summary.expiringToday > 0 ? "warning" : undefined} />
+            <Kpi label="Revenue today" value={formatMinor(summary.todaysRevenueMinor)} href="/billing" />
+          </>
+        ) : (
+          Array.from({ length: 8 }).map((_, i) => (
+            <Card key={i}>
+              <CardContent className="p-4">
+                <div className="h-3 w-16 rounded bg-secondary" />
+                <div className="mt-2 h-6 w-12 rounded bg-secondary" />
+              </CardContent>
+            </Card>
+          ))
+        )}
       </div>
+
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle>Stock by blood group</CardTitle>
+          <CardDescription>
+            Available units per group{summary && summary.criticalGroups > 0 ? ` · ${summary.criticalGroups} group(s) critical` : ""}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {levels ? (
+            <div className="grid grid-cols-4 gap-3 sm:grid-cols-8">
+              {levels.map((l) => (
+                <div
+                  key={l.code}
+                  className={`rounded-lg border p-3 text-center ${l.critical ? "border-destructive/40 bg-destructive/5" : "bg-secondary/30"}`}
+                >
+                  <div className="text-sm font-semibold">{l.bloodGroup}</div>
+                  <div className={`mt-1 text-xl font-bold ${l.critical ? "text-destructive" : "text-foreground"}`}>{l.available}</div>
+                  {l.critical && <div className="text-[10px] font-medium uppercase text-destructive">low</div>}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <ListSkeleton rows={2} />
+          )}
+        </CardContent>
+      </Card>
 
       <div className="mt-6 grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>Recent activity</CardTitle>
-            <CardDescription>Latest events across the bank</CardDescription>
+            <CardDescription>Latest collections and issues</CardDescription>
           </CardHeader>
           <CardContent>
             <DataState
-              loading={loading}
+              loading={!activity}
               data={activity}
-              empty={<EmptyState icon={<Droplets className="size-6" />} title="No activity yet" />}
+              empty={<EmptyState icon={<ActivityIcon className="size-6" />} title="No activity yet" />}
             >
               {(items) => (
                 <ul className="divide-y">
                   {items.map((a) => (
-                    <li key={a.id} className="flex items-center justify-between py-2.5 text-sm">
-                      <span>{a.text}</span>
-                      <span className="text-xs text-muted-foreground">{a.at}</span>
+                    <li key={a.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+                      <span className="flex items-center gap-2">
+                        {a.kind === "collection" ? (
+                          <Droplet className="size-4 shrink-0 text-primary" />
+                        ) : (
+                          <Send className="size-4 shrink-0 text-success" />
+                        )}
+                        {a.text}
+                      </span>
+                      <span className="shrink-0 text-xs text-muted-foreground">{relativeTime(a.at)}</span>
                     </li>
                   ))}
                 </ul>
@@ -147,57 +215,43 @@ export default function DashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle>Units expiring soon</CardTitle>
-            <CardDescription>First-expiry-first-out candidates</CardDescription>
+            <CardDescription>First-expiry-first-out candidates (next 7 days)</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-2">
-            <button
-              onClick={() => setDrawerOpen(true)}
-              className="flex w-full items-center justify-between rounded-md border p-3 text-left text-sm transition-colors hover:bg-secondary"
+          <CardContent>
+            <DataState
+              loading={!expiring}
+              data={expiring}
+              empty={<EmptyState icon={<TriangleAlert className="size-6" />} title="Nothing expiring soon" />}
             >
-              <span className="flex items-center gap-2">
-                <TriangleAlert className="size-4 text-warning" />
-                PRBC O+ · #B2381
-              </span>
-              <Badge variant="warning">in 2 days</Badge>
-            </button>
-            <p className="text-xs text-muted-foreground">Select a unit to open its detail drawer.</p>
+              {(units) => (
+                <ul className="divide-y">
+                  {units.map((u) => {
+                    const d = daysUntil(u.expiresAt);
+                    return (
+                      <li key={u.id} className="flex items-center justify-between py-2.5 text-sm">
+                        <span className="flex items-center gap-2">
+                          <Badge variant="primary">{u.bloodGroup}</Badge>
+                          <span>{u.type}</span>
+                          <span className="font-mono text-xs text-muted-foreground">{u.barcode}</span>
+                        </span>
+                        <Badge variant={d <= 1 ? "destructive" : "warning"}>{d <= 0 ? "today" : `${d}d`}</Badge>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </DataState>
           </CardContent>
         </Card>
       </div>
 
-      {/* Detail drawer pattern reused across modules */}
-      <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
-        <SheetContent>
-          <SheetHeader>
-            <SheetTitle className="flex items-center gap-2">
-              Unit #B2381 <Badge variant="primary">O+</Badge>
-            </SheetTitle>
-            <SheetDescription>PRBC · prepared 3 days ago · Fridge-2 / R3</SheetDescription>
-          </SheetHeader>
-          <div className="space-y-3 text-sm">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Status</span>
-              <Badge variant="success">Available</Badge>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Expires</span>
-              <span>in 2 days</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Volume</span>
-              <span>280 ml</span>
-            </div>
-          </div>
-          <div className="mt-auto flex gap-2">
-            <Button variant="outline" className="flex-1" onClick={() => setDrawerOpen(false)}>
-              Close
-            </Button>
-            <Button className="flex-1 gap-2">
-              <Send className="size-4" /> Reserve
-            </Button>
-          </div>
-        </SheetContent>
-      </Sheet>
+      <Card className="mt-4">
+        <CardHeader>
+          <CardTitle>Collection (last 30 days)</CardTitle>
+          <CardDescription>Daily donations recorded</CardDescription>
+        </CardHeader>
+        <CardContent>{trend ? <TrendBars values={trend.map((t) => t.count)} /> : <ListSkeleton rows={2} />}</CardContent>
+      </Card>
     </>
   );
 }
