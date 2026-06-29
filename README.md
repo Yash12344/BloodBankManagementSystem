@@ -73,27 +73,44 @@ bloodline/
 
 Requirements: Node 20+, pnpm 9, Docker.
 
+After cloning, this works with **zero manual configuration** — `pnpm install` creates the
+root `.env` from `.env.example` automatically, and every package loads that single root
+`.env` on its own (no copying env files into package folders, no exporting shell vars):
+
 ```bash
-# 1. Install dependencies (generates pnpm-lock.yaml on first run)
-pnpm install
-
-# 2. Copy env and start Postgres + Redis (+ api/worker/web/nginx)
-cp .env.example .env
-docker compose up --build        # full stack; app via nginx at http://localhost:8080
-
-# --- or run the app processes directly against dockerized infra ---
-docker compose up -d postgres redis
-pnpm db:generate                 # generate Prisma client
+pnpm install                     # installs deps + creates .env from .env.example
+docker compose up -d postgres redis   # start Postgres + Redis
 pnpm db:push                     # materialize schema (until migrations are committed)
-pnpm db:seed                     # roles, permissions, demo org + Super Admin
-# Default login: admin@bloodline.local / ChangeMe!123  (override via SEED_ADMIN_* env)
-pnpm --filter @bloodline/api dev # API on :4000  (GET /health, /ready)
-pnpm --filter @bloodline/api dev:worker
-pnpm --filter @bloodline/web dev # Web on :3000
+pnpm db:seed                     # roles, permissions, demo org + Super Admin + demo data
+pnpm dev                         # API (:4000) + worker + Web (:3000), all at once
 ```
 
-Verify: `curl localhost:4000/health` → `{"status":"ok"}`, and `localhost:3000` shows the
-skeleton landing page.
+Default login: `admin@bloodline.local` / `ChangeMe!123` (override via `SEED_ADMIN_*` env).
+
+`pnpm dev` runs the API server, the background worker and the web app together (the API's
+`dev` script fans out to server + worker via `concurrently`, and turbo runs the web app in
+parallel). Verify: `curl localhost:4000/health` → `{"status":"ok"}`, and `localhost:3000`
+shows the dashboard login.
+
+> **How env loading works.** There is exactly one `.env`, at the repo root. The API and
+> worker load it through `apps/api/src/config/loadEnv.ts`, the seed through
+> `packages/db/src/loadEnv.ts` — both walk up from their working directory to the
+> workspace root (the folder with `pnpm-workspace.yaml`). The Prisma CLI (`db:push`,
+> `db:migrate`, `db:seed`) is wrapped with `dotenv-cli` in the root scripts so it sees the
+> same file. Everything loads with `override: false`, so when Docker Compose injects real
+> environment variables (and there is no `.env` file in the container) those win — the
+> identical code path works in both places.
+
+### Full stack in Docker
+
+```bash
+docker compose up --build        # postgres, redis, api, worker, web, nginx
+# App via nginx at http://localhost:8080 (web :3000 and api :4000 also exposed directly).
+```
+
+Compose injects configuration through the container environment, runs `db push` on API
+start, and gates `worker`/`web` on the API's healthcheck so they only start once the schema
+is ready.
 
 ## Status
 

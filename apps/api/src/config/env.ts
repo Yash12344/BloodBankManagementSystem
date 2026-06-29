@@ -2,6 +2,8 @@
  * Validated environment configuration. The process fails fast at boot if anything
  * required is missing or malformed, so we never run with a half-configured app.
  */
+// Must run before `process.env` is read below: loads the monorepo root `.env`.
+import "./loadEnv.js";
 import { z } from "zod";
 
 const envSchema = z.object({

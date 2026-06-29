@@ -3,8 +3,10 @@
  * Idempotent: safe to run repeatedly. Seeds the permission catalogue, the default
  * role→permission matrix, a demo organization + branch, and a Super Admin user.
  *
- * Usage: DATABASE_URL=... pnpm --filter @bloodline/db seed
+ * Usage: pnpm db:seed (loads the root .env automatically; no manual exports needed)
  */
+// Must run before `process.env` is read: loads the monorepo root `.env`.
+import "../src/loadEnv.js";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { randomUUID } from "node:crypto";
