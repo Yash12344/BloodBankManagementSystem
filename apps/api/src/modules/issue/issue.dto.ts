@@ -1,4 +1,13 @@
+import { paginationSchema } from "@bloodline/types";
 import { z } from "zod";
+
+export const issueListSchema = paginationSchema.extend({
+  status: z.enum(["ISSUED", "RETURNED", "CANCELLED"]).optional(),
+  hospitalId: z.string().uuid().optional(),
+  patientId: z.string().uuid().optional(),
+  dateFrom: z.coerce.date().optional(),
+  dateTo: z.coerce.date().optional(),
+});
 
 export const crossMatchSchema = z.object({
   requestId: z.string().uuid(),
@@ -20,3 +29,4 @@ export const issueReturnSchema = z.object({
 
 export type CrossMatchInput = z.infer<typeof crossMatchSchema>;
 export type IssueCreateInput = z.infer<typeof issueCreateSchema>;
+export type IssueListQuery = z.infer<typeof issueListSchema>;

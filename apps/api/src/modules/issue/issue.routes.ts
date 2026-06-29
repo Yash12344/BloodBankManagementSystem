@@ -6,6 +6,7 @@ import * as c from "./issue.controller.js";
 
 export const issueRouter = Router();
 issueRouter.use(requireAuth);
+issueRouter.get("/", requirePermission("issue", "view"), asyncHandler(c.list));
 issueRouter.post("/", requirePermission("issue", "create"), asyncHandler(c.create));
 issueRouter.get("/:id", requirePermission("issue", "view"), asyncHandler(c.getOne));
 issueRouter.post("/:id/return", requirePermission("issue", "create"), asyncHandler(c.returnIssue));

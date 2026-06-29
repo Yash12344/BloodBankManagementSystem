@@ -1,13 +1,17 @@
+import type { Paginated } from "@bloodline/types";
 import type { BloodGroup, ComponentType, Prisma } from "@bloodline/db";
 import { writeAudit, type AuditInput } from "../../lib/audit.js";
 import { Conflict, DomainError, NotFound } from "../../lib/errors.js";
+import { buildMeta, parseSort, toSkipTake } from "../../lib/pagination.js";
 import { prisma } from "../../lib/prisma.js";
 import { computeInvoiceTotals, type InvoiceLineInput } from "../billing/invoice.util.js";
 import { adjustStock, recordMovement } from "../inventory/stock.js";
 import { withinColdChainWindow } from "./coldchain.js";
-import type { CrossMatchInput, IssueCreateInput } from "./issue.dto.js";
+import type { CrossMatchInput, IssueCreateInput, IssueListQuery } from "./issue.dto.js";
 
 type Ctx = Pick<AuditInput, "ip" | "userAgent"> & { userId: string };
+
+const ISSUE_SORTABLE = ["issuedAt", "status"] as const;
 
 export async function createCrossMatch(branchId: string, ctx: Ctx, input: CrossMatchInput) {
   const request = await prisma.bloodRequest.findFirst({ where: { id: input.requestId, branchId }, select: { id: true } });
@@ -208,6 +212,38 @@ export async function returnIssue(branchId: string, ctx: Ctx, issueId: string, r
   });
 
   return result;
+}
+
+export async function listIssues(branchId: string, q: IssueListQuery): Promise<Paginated<unknown>> {
+  const where: Prisma.IssueWhereInput = { branchId };
+  if (q.status) where.status = q.status;
+  if (q.hospitalId) where.hospitalId = q.hospitalId;
+  if (q.patientId) where.patientId = q.patientId;
+  if (q.dateFrom || q.dateTo) {
+    const range: Prisma.DateTimeFilter = {};
+    if (q.dateFrom) range.gte = q.dateFrom;
+    if (q.dateTo) range.lte = q.dateTo;
+    where.issuedAt = range;
+  }
+
+  const { skip, take } = toSkipTake(q.page, q.limit);
+  const [rows, total] = await Promise.all([
+    prisma.issue.findMany({
+      where,
+      skip,
+      take,
+      orderBy: parseSort(q.sort, ISSUE_SORTABLE, { issuedAt: "desc" }) as Prisma.IssueOrderByWithRelationInput,
+      include: {
+        patient: { select: { name: true } },
+        hospital: { select: { name: true } },
+        invoice: { select: { number: true, totalMinor: true, status: true } },
+        _count: { select: { items: true } },
+      },
+    }),
+    prisma.issue.count({ where }),
+  ]);
+
+  return { data: rows, meta: buildMeta(q.page, q.limit, total) };
 }
 
 export async function getIssue(branchId: string, id: string) {
