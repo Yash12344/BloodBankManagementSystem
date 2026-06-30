@@ -1,6 +1,8 @@
 import { Router, type Request, type Response } from "express";
 import { z } from "zod";
 import { toCsv } from "../../lib/csv.js";
+import { toPdfBuffer } from "../../lib/pdf.js";
+import { toXlsxBuffer } from "../../lib/xlsx.js";
 import { BadRequest, Unauthorized } from "../../lib/errors.js";
 import { asyncHandler } from "../../middleware/asyncHandler.js";
 import { requireAuth } from "../../middleware/auth.js";
@@ -8,10 +10,12 @@ import { requirePermission } from "../../middleware/rbac.js";
 import { buildReport, REPORT_TYPES } from "./report.service.js";
 
 const querySchema = z.object({
-  format: z.enum(["csv", "json"]).default("json"),
+  format: z.enum(["csv", "json", "xlsx", "pdf"]).default("json"),
   dateFrom: z.coerce.date().optional(),
   dateTo: z.coerce.date().optional(),
 });
+
+const titleCase = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 export const reportRouter = Router();
 reportRouter.use(requireAuth);
@@ -33,6 +37,25 @@ reportRouter.get(
       res.send(toCsv(report.headers, report.rows));
       return;
     }
+
+    if (format === "xlsx") {
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", `attachment; filename="${type}-report.xlsx"`);
+      res.send(await toXlsxBuffer(report));
+      return;
+    }
+
+    if (format === "pdf") {
+      const range =
+        dateFrom || dateTo
+          ? `${dateFrom ? dateFrom.toISOString().slice(0, 10) : "…"} to ${dateTo ? dateTo.toISOString().slice(0, 10) : "…"}`
+          : undefined;
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="${type}-report.pdf"`);
+      res.send(await toPdfBuffer(report, { title: titleCase(type), range }));
+      return;
+    }
+
     res.json(report);
   }),
 );

@@ -39,25 +39,30 @@ export default function ReportsPage() {
     }
   }
 
-  async function download() {
+  const [downloading, setDownloading] = useState<string | null>(null);
+
+  async function download(format: "csv" | "xlsx" | "pdf") {
+    setDownloading(format);
     try {
-      const res = await fetch(`/api/v1/reports/${type}?${qs("csv")}`, { credentials: "include" });
+      const res = await fetch(`/api/v1/reports/${type}?${qs(format)}`, { credentials: "include" });
       if (!res.ok) throw new Error("Download failed");
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${type}-report.csv`;
+      a.download = `${type}-report.${format}`;
       a.click();
       URL.revokeObjectURL(url);
     } catch {
       toast.error("Download failed");
+    } finally {
+      setDownloading(null);
     }
   }
 
   return (
     <>
-      <PageHeader title="Reports" description="Generate operational and financial reports. Export as CSV." />
+      <PageHeader title="Reports" description="Generate operational and financial reports. Export as CSV, Excel or PDF." />
 
       <Card className="mb-4 p-4">
         <div className="flex flex-wrap items-end gap-3">
@@ -76,7 +81,15 @@ export default function ReportsPage() {
             <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="h-9 rounded-md border border-input bg-background px-2 text-sm" />
           </div>
           <Button variant="outline" onClick={preview} disabled={loading}>Preview</Button>
-          <Button onClick={download}>Download CSV</Button>
+          <Button variant="outline" onClick={() => download("csv")} disabled={downloading !== null}>
+            {downloading === "csv" ? "…" : "CSV"}
+          </Button>
+          <Button variant="outline" onClick={() => download("xlsx")} disabled={downloading !== null}>
+            {downloading === "xlsx" ? "…" : "Excel"}
+          </Button>
+          <Button onClick={() => download("pdf")} disabled={downloading !== null}>
+            {downloading === "pdf" ? "…" : "PDF"}
+          </Button>
         </div>
       </Card>
 
