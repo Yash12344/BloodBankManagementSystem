@@ -26,7 +26,19 @@ export async function createCollection(branchId: string, ctx: Ctx, input: Collec
   const donor = await prisma.donor.findFirst({ where: { id: input.donorId, branchId, deletedAt: null } });
   if (!donor) throw NotFound("Donor not found");
 
-  const collectedAt = input.collectedAt ?? new Date();
+  // Absolute contraindication: a blacklisted donor (e.g. permanently deferred after a
+  // reactive TTI screen) can NEVER be bled — not even with an eligibility override.
+  if (donor.status === "BLACKLISTED") {
+    throw DomainError("Donor is permanently deferred (blacklisted) and cannot be bled. Override is not permitted.");
+  }
+
+  const now = new Date();
+  const collectedAt = input.collectedAt ?? now;
+  // Collections cannot be future-dated — it would corrupt eligibility/next-eligible math
+  // and the audit timeline. A small clock-skew margin is allowed.
+  if (collectedAt.getTime() > now.getTime() + 5 * 60_000) {
+    throw DomainError("Collection time cannot be in the future");
+  }
 
   const eligibility = evaluateEligibility({
     dob: donor.dob,

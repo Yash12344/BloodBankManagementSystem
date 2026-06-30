@@ -1,7 +1,7 @@
 import type { Paginated } from "@bloodline/types";
 import type { LabTest, Prisma } from "@bloodline/db";
 import { writeAudit, type AuditInput } from "../../lib/audit.js";
-import { DomainError, NotFound } from "../../lib/errors.js";
+import { Conflict, DomainError, NotFound } from "../../lib/errors.js";
 import { buildMeta, toSkipTake } from "../../lib/pagination.js";
 import { prisma } from "../../lib/prisma.js";
 import type { LabTestsInput, LabWorklistQuery } from "./lab.dto.js";
@@ -89,11 +89,27 @@ export async function approve(branchId: string, ctx: Ctx, unitId: string) {
   if (tti.anyReactive) throw DomainError("Cannot approve a unit with a reactive TTI result");
 
   const result = await prisma.$transaction(async (tx) => {
-    const approvedLab = await tx.labTest.update({
-      where: { unitId },
+    // Re-validate atomically: only release if the record is STILL pending and every TTI
+    // marker is STILL non-reactive. Closes the TOCTOU where a concurrent recordTests marks
+    // a marker reactive (quarantining the unit) between our check above and this write —
+    // without this guard, approval would silently overwrite that quarantine.
+    const approved = await tx.labTest.updateMany({
+      where: {
+        unitId,
+        result: "PENDING",
+        hiv: "NON_REACTIVE",
+        hbsag: "NON_REACTIVE",
+        hcv: "NON_REACTIVE",
+        malaria: "NON_REACTIVE",
+        syphilis: "NON_REACTIVE",
+      },
       data: { result: "APPROVED", verifiedByUserId: ctx.userId, approvedAt: new Date() },
     });
+    if (approved.count === 0) {
+      throw Conflict("Lab results changed during approval; re-check the screening panel before releasing");
+    }
     await tx.bloodUnit.update({ where: { id: unitId }, data: { status: "APPROVED" } });
+    const approvedLab = await tx.labTest.findUniqueOrThrow({ where: { unitId } });
     await writeAudit({ branchId, userId: ctx.userId, entity: "lab", entityId: unitId, action: "APPROVE", after: approvedLab }, tx);
     return approvedLab;
   });

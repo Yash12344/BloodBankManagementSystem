@@ -14,6 +14,11 @@ type Ctx = Pick<AuditInput, "ip" | "userAgent"> & { userId: string };
 
 const ISSUE_SORTABLE = ["issuedAt", "status"] as const;
 
+// A cross-match is only valid for a limited window (recipient antibody status can change).
+// Standard practice is 72 hours; an older cross-match must be repeated before issue.
+const CROSSMATCH_VALID_HOURS = 72;
+const CROSSMATCH_VALID_MS = CROSSMATCH_VALID_HOURS * 3_600_000;
+
 export async function createCrossMatch(branchId: string, ctx: Ctx, input: CrossMatchInput) {
   const request = await prisma.bloodRequest.findFirst({
     where: { id: input.requestId, branchId },
@@ -102,15 +107,17 @@ export async function createIssue(branchId: string, ctx: Ctx, input: IssueCreate
     const crossMatch = await prisma.crossMatch.findFirst({
       where: { requestId: input.requestId, componentId: comp.id, result: "COMPATIBLE" },
       orderBy: { performedAt: "desc" },
-      select: { id: true },
+      select: { id: true, performedAt: true },
     });
+    const crossMatchValid = !!crossMatch && now.getTime() - crossMatch.performedAt.getTime() <= CROSSMATCH_VALID_MS;
     if (!crossMatch) problems.push(`${barcode}: no compatible cross-match`);
+    else if (!crossMatchValid) problems.push(`${barcode}: cross-match expired (older than ${CROSSMATCH_VALID_HOURS}h); re-cross-match required`);
 
     // Final ABO/Rh safety gate — enforced even if a cross-match record claims COMPATIBLE.
     const compat = evaluateCompatibility(comp.bloodGroup, recipientGroup, comp.type);
     if (!compat.compatible) problems.push(`${barcode}: ${compat.reason}`);
 
-    if (comp.status === "RESERVED" && comp.expiresAt > now && reservation && crossMatch && compat.compatible) {
+    if (comp.status === "RESERVED" && comp.expiresAt > now && reservation && crossMatch && crossMatchValid && compat.compatible) {
       resolved.push({ componentId: comp.id, crossMatchId: crossMatch.id, bloodGroup: comp.bloodGroup, type: comp.type });
     }
   }
