@@ -39,13 +39,21 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background p-6">
-      <Card className="w-full max-w-sm p-8">
-        <div className="mb-6 flex items-center gap-2">
-          <span className="inline-flex size-9 items-center justify-center rounded-card bg-primary/10 text-primary">
-            <Heart className="size-4 fill-current" />
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background p-6">
+      {/* Soft brand glow backdrop */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_50%_at_50%_0%,hsl(var(--primary)/0.12),transparent_70%)]"
+      />
+      <Card className="relative w-full max-w-sm p-8 shadow-lg animate-slide-up">
+        <div className="mb-6 flex items-center gap-3">
+          <span className="inline-flex size-10 items-center justify-center rounded-card bg-gradient-to-br from-primary to-primary/70 text-primary-foreground shadow-sm">
+            <Heart className="size-5 fill-current" />
           </span>
-          <h1 className="text-xl font-semibold">BloodLine</h1>
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight">BloodLine</h1>
+            <p className="text-xs text-muted-foreground">Blood Bank Management System</p>
+          </div>
         </div>
 
         <form onSubmit={onSubmit} className="space-y-4">

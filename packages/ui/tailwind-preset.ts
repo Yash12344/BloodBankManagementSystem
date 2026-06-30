@@ -65,9 +65,14 @@ const preset: Config = {
       },
       keyframes: {
         "fade-in": { from: { opacity: "0" }, to: { opacity: "1" } },
+        "slide-up": {
+          from: { opacity: "0", transform: "translateY(8px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
       },
       animation: {
         "fade-in": "fade-in 150ms ease-out",
+        "slide-up": "slide-up 240ms cubic-bezier(0.22, 1, 0.36, 1)",
       },
     },
   },

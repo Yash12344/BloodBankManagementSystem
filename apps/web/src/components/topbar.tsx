@@ -32,7 +32,7 @@ export function Topbar() {
   const { toggleSidebar, setCommandOpen } = useUiStore();
 
   return (
-    <header className="flex items-center gap-3 border-b bg-background px-4 py-2.5">
+    <header className="sticky top-0 z-30 flex items-center gap-3 border-b bg-background/80 px-4 py-2.5 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <Button variant="ghost" size="icon" aria-label="Toggle sidebar" onClick={toggleSidebar}>
         <PanelLeft />
       </Button>

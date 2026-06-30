@@ -1,7 +1,7 @@
 "use client";
 
 import { Spinner } from "@bloodline/ui";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { CommandPalette } from "@/components/command-palette";
 import { Sidebar } from "@/components/sidebar";
@@ -10,6 +10,7 @@ import { useAuth } from "@/lib/auth-context";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const { user, loading } = useAuth();
 
   // Client-side guard: redirect to login once we know there is no session.
@@ -30,7 +31,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar />
-        <main className="flex-1 overflow-x-hidden p-6">{children}</main>
+        <main className="flex-1 overflow-x-hidden p-4 sm:p-6">
+          <div key={pathname} className="mx-auto w-full max-w-screen-2xl animate-slide-up">
+            {children}
+          </div>
+        </main>
       </div>
       <CommandPalette />
     </div>

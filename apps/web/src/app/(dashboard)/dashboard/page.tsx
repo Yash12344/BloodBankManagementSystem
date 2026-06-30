@@ -11,7 +11,18 @@ import {
   EmptyState,
   ListSkeleton,
 } from "@bloodline/ui";
-import { Activity as ActivityIcon, Droplet, Send, TriangleAlert } from "lucide-react";
+import {
+  Activity as ActivityIcon,
+  ArrowLeftRight,
+  Boxes,
+  Droplet,
+  FlaskConical,
+  Receipt,
+  Send,
+  Siren,
+  TriangleAlert,
+  type LucideIcon,
+} from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/page-header";
@@ -60,17 +71,36 @@ interface Trend {
   count: number;
 }
 
-function Kpi({ label, value, tone, href }: { label: string; value: string; tone?: "destructive" | "warning"; href?: string }) {
+function Kpi({
+  label,
+  value,
+  icon: Icon,
+  tone,
+  href,
+}: {
+  label: string;
+  value: string;
+  icon: LucideIcon;
+  tone?: "destructive" | "warning";
+  href?: string;
+}) {
+  const toneText = tone === "destructive" ? "text-destructive" : tone === "warning" ? "text-warning" : "text-primary";
+  const toneBg = tone === "destructive" ? "bg-destructive/10" : tone === "warning" ? "bg-warning/10" : "bg-primary/10";
   const body = (
-    <Card className={tone ? "border-l-4 border-l-current " + (tone === "destructive" ? "text-destructive" : "text-warning") : undefined}>
-      <CardContent className="p-4">
-        <div className="text-xs text-muted-foreground">{label}</div>
-        <div className="mt-1 text-2xl font-semibold text-foreground">{value}</div>
+    <Card className="h-full transition-shadow hover:shadow-card">
+      <CardContent className="flex items-center gap-3 p-4">
+        <span className={`inline-flex size-9 shrink-0 items-center justify-center rounded-md ${toneBg} ${toneText}`}>
+          <Icon className="size-4" />
+        </span>
+        <div className="min-w-0">
+          <div className="truncate text-xs text-muted-foreground">{label}</div>
+          <div className="mt-0.5 text-xl font-semibold text-foreground">{value}</div>
+        </div>
       </CardContent>
     </Card>
   );
   return href ? (
-    <Link href={href} className="transition-opacity hover:opacity-80">
+    <Link href={href} className="block">
       {body}
     </Link>
   ) : (
@@ -131,14 +161,14 @@ export default function DashboardPage() {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8">
         {summary ? (
           <>
-            <Kpi label="Available units" value={String(summary.totalAvailableUnits)} href="/inventory" />
-            <Kpi label="Collected today" value={String(summary.todaysCollection)} href="/collection" />
-            <Kpi label="Issued today" value={String(summary.todaysIssued)} href="/issue" />
-            <Kpi label="Open requests" value={String(summary.openRequests)} href="/requests" />
-            <Kpi label="Emergencies" value={String(summary.emergencies)} tone={summary.emergencies > 0 ? "destructive" : undefined} href="/requests" />
-            <Kpi label="Pending lab tests" value={String(summary.pendingTests)} href="/lab" />
-            <Kpi label="Expiring today" value={String(summary.expiringToday)} tone={summary.expiringToday > 0 ? "warning" : undefined} />
-            <Kpi label="Revenue today" value={formatMinor(summary.todaysRevenueMinor)} href="/billing" />
+            <Kpi label="Available units" value={String(summary.totalAvailableUnits)} icon={Boxes} href="/inventory" />
+            <Kpi label="Collected today" value={String(summary.todaysCollection)} icon={Droplet} href="/collection" />
+            <Kpi label="Issued today" value={String(summary.todaysIssued)} icon={Send} href="/issue" />
+            <Kpi label="Open requests" value={String(summary.openRequests)} icon={ArrowLeftRight} href="/requests" />
+            <Kpi label="Emergencies" value={String(summary.emergencies)} icon={Siren} tone={summary.emergencies > 0 ? "destructive" : undefined} href="/requests" />
+            <Kpi label="Pending lab tests" value={String(summary.pendingTests)} icon={FlaskConical} href="/lab" />
+            <Kpi label="Expiring today" value={String(summary.expiringToday)} icon={TriangleAlert} tone={summary.expiringToday > 0 ? "warning" : undefined} />
+            <Kpi label="Revenue today" value={formatMinor(summary.todaysRevenueMinor)} icon={Receipt} href="/billing" />
           </>
         ) : (
           Array.from({ length: 8 }).map((_, i) => (
