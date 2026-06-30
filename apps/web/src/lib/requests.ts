@@ -52,6 +52,8 @@ export const approveRequest = (id: string) =>
 export const rejectRequest = (id: string, reason: string) =>
   api(`/requests/${id}/reject`, { method: "POST", body: JSON.stringify({ reason }) });
 
+export const cancelRequest = (id: string) => api(`/requests/${id}/cancel`, { method: "POST" });
+
 export const crossMatch = (requestId: string, componentId: string) =>
   api("/crossmatch", { method: "POST", body: JSON.stringify({ requestId, componentId, result: "COMPATIBLE" }) });
 

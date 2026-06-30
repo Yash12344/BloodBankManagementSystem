@@ -18,10 +18,11 @@ import {
 import { Heart } from "lucide-react";
 import { useState } from "react";
 import { AddDonorDialog } from "@/components/donors/add-donor-dialog";
+import { EditDonorDialog } from "@/components/donors/edit-donor-dialog";
 import { PageHeader } from "@/components/page-header";
 import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
-import { recallDonor, recordDonation, useDonors, type Donor } from "@/lib/donors";
+import { deleteDonor, recallDonor, recordDonation, useDonors, type Donor } from "@/lib/donors";
 
 function groupLabel(g: string) {
   return BLOOD_GROUP_LABEL[g as keyof typeof BLOOD_GROUP_LABEL] ?? g;
@@ -39,12 +40,30 @@ export default function DonorsPage() {
   const { can } = useAuth();
   const [q, setQ] = useState("");
   const [eligible, setEligible] = useState<"" | "true" | "false">("");
-  const { data, loading, error, refetch } = useDonors({
+  const [page, setPage] = useState(1);
+  const { data, meta, loading, error, refetch } = useDonors({
     q: q || undefined,
     eligible: eligible || undefined,
+    page,
   });
   const [selected, setSelected] = useState<Donor | null>(null);
+  const [editing, setEditing] = useState<Donor | null>(null);
   const [donating, setDonating] = useState(false);
+
+  async function onDelete(donor: Donor) {
+    if (!window.confirm(`Delete donor ${donor.name}? This cannot be undone.`)) return;
+    setDonating(true);
+    try {
+      await deleteDonor(donor.id);
+      toast.success("Donor deleted");
+      setSelected(null);
+      refetch();
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Failed to delete donor");
+    } finally {
+      setDonating(false);
+    }
+  }
 
   async function onRecordDonation(donor: Donor) {
     setDonating(true);
@@ -88,12 +107,18 @@ export default function DonorsPage() {
         <Input
           placeholder="Search name, code or mobile…"
           value={q}
-          onChange={(e) => setQ(e.target.value)}
+          onChange={(e) => {
+            setQ(e.target.value);
+            setPage(1);
+          }}
           className="max-w-xs"
         />
         <select
           value={eligible}
-          onChange={(e) => setEligible(e.target.value as "" | "true" | "false")}
+          onChange={(e) => {
+            setEligible(e.target.value as "" | "true" | "false");
+            setPage(1);
+          }}
           className="h-9 rounded-md border border-input bg-background px-3 text-sm"
         >
           <option value="">All</option>
@@ -156,6 +181,18 @@ export default function DonorsPage() {
         </DataState>
       </Card>
 
+      {meta && meta.total > meta.limit && (
+        <div className="mt-3 flex items-center justify-between text-sm text-muted-foreground">
+          <span>Page {meta.page} of {meta.totalPages} · {meta.total} donors</span>
+          <div className="flex gap-2">
+            <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>Previous</Button>
+            <Button variant="outline" size="sm" disabled={page >= meta.totalPages} onClick={() => setPage((p) => p + 1)}>Next</Button>
+          </div>
+        </div>
+      )}
+
+      <EditDonorDialog donor={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); setSelected(null); refetch(); }} />
+
       <Sheet open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
         <SheetContent>
           {selected && (
@@ -205,6 +242,11 @@ export default function DonorsPage() {
                     {selected.eligibility.eligible ? "Record donation" : "Not eligible to donate"}
                   </Button>
                 )}
+                {can("donors", "edit") && (
+                  <Button variant="outline" className="w-full" disabled={donating} onClick={() => setEditing(selected)}>
+                    Edit donor
+                  </Button>
+                )}
                 {can("lab", "approve") && (
                   <Button
                     variant="destructive"
@@ -213,6 +255,11 @@ export default function DonorsPage() {
                     onClick={() => onRecall(selected)}
                   >
                     Recall (look-back)
+                  </Button>
+                )}
+                {can("donors", "delete") && (
+                  <Button variant="ghost" className="w-full text-destructive" disabled={donating} onClick={() => onDelete(selected)}>
+                    Delete donor
                   </Button>
                 )}
               </div>

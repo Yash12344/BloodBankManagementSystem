@@ -13,24 +13,38 @@ export interface Patient {
   hospital?: { name: string } | null;
 }
 
-export function usePatients(q?: string) {
+export function usePatients(params: { q?: string; page?: number } = {}) {
   const [data, setData] = useState<Patient[]>();
+  const [meta, setMeta] = useState<Paginated<Patient>["meta"]>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>();
 
-  const qs = q ? `?q=${encodeURIComponent(q)}` : "";
+  const query = new URLSearchParams();
+  if (params.q) query.set("q", params.q);
+  query.set("page", String(params.page ?? 1));
+  const qs = query.toString();
+
   const load = useCallback(() => {
     setLoading(true);
     setError(undefined);
-    api<Paginated<Patient>>(`/patients${qs}`)
-      .then((r) => setData(r.data))
+    api<Paginated<Patient>>(`/patients?${qs}`)
+      .then((r) => {
+        setData(r.data);
+        setMeta(r.meta);
+      })
       .catch(setError)
       .finally(() => setLoading(false));
   }, [qs]);
 
   useEffect(() => load(), [load]);
-  return { data, loading, error, refetch: load };
+  return { data, meta, loading, error, refetch: load };
 }
 
 export const createPatient = (body: Record<string, unknown>) =>
   api("/patients", { method: "POST", body: JSON.stringify(body) });
+
+export const updatePatient = (id: string, body: Record<string, unknown>) =>
+  api(`/patients/${id}`, { method: "PATCH", body: JSON.stringify(body) });
+
+export const deletePatient = (id: string): Promise<void> =>
+  api(`/patients/${id}`, { method: "DELETE" });

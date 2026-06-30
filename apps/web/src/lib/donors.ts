@@ -69,6 +69,14 @@ export async function createDonor(input: Record<string, unknown>): Promise<{ don
   return api("/donors", { method: "POST", body: JSON.stringify(input) });
 }
 
+export async function updateDonor(id: string, input: Record<string, unknown>): Promise<{ donor: Donor }> {
+  return api(`/donors/${id}`, { method: "PATCH", body: JSON.stringify(input) });
+}
+
+export async function deleteDonor(id: string): Promise<void> {
+  return api(`/donors/${id}`, { method: "DELETE" });
+}
+
 export async function recordDonation(donorId: string): Promise<unknown> {
   return api("/collections", { method: "POST", body: JSON.stringify({ donorId }) });
 }
