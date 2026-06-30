@@ -88,17 +88,31 @@ const ROLE_MATRIX: Record<string, string[]> = {
   ],
   "Lab Technician": [
     "dashboard.view",
-    "lab.*",
+    // Records screening results, but CANNOT release a unit. Approve/reject and donor
+    // recall (both gated on lab.approve) are reserved for the Blood Bank Medical Officer
+    // — separation of duties: the person who performs the test is not the sole authority
+    // releasing the unit for issue.
+    "lab.view",
+    "lab.create",
+    "lab.edit",
     "components.*",
     "inventory.view",
     "requests.view",
   ],
   Reception: [
     "dashboard.view",
-    "donors.*",
+    // Front desk registers and updates donors/patients but cannot delete them — donor
+    // and patient records are part of the traceability chain (deletion is Admin-only).
+    "donors.view",
+    "donors.create",
+    "donors.edit",
+    "donors.export",
+    "donors.import",
     "collection.create",
     "collection.view",
-    "patients.*",
+    "patients.view",
+    "patients.create",
+    "patients.edit",
     "requests.create",
     "requests.view",
     "issue.view",
@@ -124,7 +138,11 @@ const ROLE_MATRIX: Record<string, string[]> = {
   "Blood Collection Staff": [
     "dashboard.view",
     "donors.view",
-    "collection.*",
+    // Phlebotomist records collections and moves them through the bleed workflow, but
+    // collection records are immutable history — no delete.
+    "collection.view",
+    "collection.create",
+    "collection.edit",
     "camps.view",
   ],
   "Store Manager": [
@@ -134,6 +152,29 @@ const ROLE_MATRIX: Record<string, string[]> = {
     "issue.view",
     "issue.create",
     "reports.view",
+  ],
+  // Independent quality/regulatory oversight: full read visibility plus audit-log access
+  // and reporting, with NO authority to create, edit, approve or delete operational
+  // records. Keeps the QA review function independent of the staff it audits.
+  "Quality Manager": [
+    "dashboard.view",
+    "donors.view",
+    "collection.view",
+    "lab.view",
+    "components.view",
+    "inventory.view",
+    "patients.view",
+    "requests.view",
+    "issue.view",
+    "hospitals.view",
+    "camps.view",
+    "staff.view",
+    "billing.view",
+    "reports.view",
+    "reports.export",
+    "analytics.view",
+    "notifications.view",
+    "settings.view",
   ],
 };
 
@@ -161,6 +202,7 @@ async function seedDemo(db: PrismaClient, branchId: string, adminId: string, sta
     { name: "Priya Menon", email: "reception@bloodline.local", role: "Reception", department: "Front Office", designation: "Receptionist" },
     { name: "Sahil Jain", email: "accounts@bloodline.local", role: "Accountant", department: "Finance", designation: "Accountant" },
     { name: "Neha Bansal", email: "store@bloodline.local", role: "Store Manager", department: "Inventory", designation: "Store In-charge" },
+    { name: "Dr. Faisal Ahmed", email: "qa@bloodline.local", role: "Quality Manager", department: "Quality", designation: "Quality Manager" },
   ] as const;
 
   const staff: Record<string, string> = {};
