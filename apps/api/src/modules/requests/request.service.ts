@@ -1,6 +1,7 @@
 import type { Paginated } from "@bloodline/types";
 import type { Prisma } from "@bloodline/db";
 import { writeAudit, type AuditInput } from "../../lib/audit.js";
+import { evaluateCompatibility } from "../../lib/bloodCompatibility.js";
 import { DomainError, NotFound } from "../../lib/errors.js";
 import { buildMeta, toSkipTake } from "../../lib/pagination.js";
 import { prisma } from "../../lib/prisma.js";
@@ -11,13 +12,27 @@ type Ctx = Pick<AuditInput, "ip" | "userAgent"> & { userId: string };
 
 export async function createRequest(branchId: string, ctx: Ctx, input: RequestCreateInput) {
   // Validate referenced entities belong to the branch.
+  let patientGroup: string | null = null;
   if (input.patientId) {
-    const p = await prisma.patient.findFirst({ where: { id: input.patientId, branchId, deletedAt: null }, select: { id: true } });
+    const p = await prisma.patient.findFirst({ where: { id: input.patientId, branchId, deletedAt: null }, select: { id: true, bloodGroup: true } });
     if (!p) throw NotFound("Patient not found");
+    patientGroup = p.bloodGroup;
   }
   if (input.hospitalId) {
     const h = await prisma.hospital.findFirst({ where: { id: input.hospitalId, branchId, deletedAt: null }, select: { id: true } });
     if (!h) throw NotFound("Hospital not found");
+  }
+
+  // If the patient's group is known, the ordered group must be transfusion-compatible —
+  // catches a wrong-group order before any unit is reserved against it.
+  if (patientGroup) {
+    const compat = evaluateCompatibility(input.bloodGroup, patientGroup, input.componentType);
+    if (!compat.compatible) {
+      throw DomainError(
+        `Requested ${input.bloodGroup} ${input.componentType} is not compatible with patient group ${patientGroup}: ${compat.reason}`,
+        { requestedGroup: input.bloodGroup, patientGroup },
+      );
+    }
   }
 
   const request = await prisma.bloodRequest.create({ data: { ...input, branchId, status: "PENDING" } });

@@ -40,6 +40,15 @@ export async function createCollection(branchId: string, ctx: Ctx, input: Collec
     throw DomainError("Donor is not eligible to donate", { reasons: eligibility.reasons });
   }
 
+  // Donor-safety cap: collected volume must not exceed ~10.5 ml per kg of body weight
+  // (regulatory limit, samples included). This is a hard limit — not overridable.
+  const maxVolumeMl = Math.floor(donor.weightKg * 10.5);
+  if (input.volumeMl > maxVolumeMl) {
+    throw DomainError(
+      `Volume ${input.volumeMl} ml exceeds the safe limit of ${maxVolumeMl} ml for a ${donor.weightKg} kg donor (10.5 ml/kg)`,
+    );
+  }
+
   if (input.campId) {
     const camp = await prisma.camp.findFirst({ where: { id: input.campId, branchId } });
     if (!camp) throw NotFound("Camp not found");

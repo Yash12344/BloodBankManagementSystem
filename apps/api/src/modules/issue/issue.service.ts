@@ -1,6 +1,7 @@
 import type { Paginated } from "@bloodline/types";
 import type { BloodGroup, ComponentType, Prisma } from "@bloodline/db";
 import { writeAudit, type AuditInput } from "../../lib/audit.js";
+import { evaluateCompatibility } from "../../lib/bloodCompatibility.js";
 import { Conflict, DomainError, NotFound } from "../../lib/errors.js";
 import { buildMeta, parseSort, toSkipTake } from "../../lib/pagination.js";
 import { prisma } from "../../lib/prisma.js";
@@ -14,10 +15,27 @@ type Ctx = Pick<AuditInput, "ip" | "userAgent"> & { userId: string };
 const ISSUE_SORTABLE = ["issuedAt", "status"] as const;
 
 export async function createCrossMatch(branchId: string, ctx: Ctx, input: CrossMatchInput) {
-  const request = await prisma.bloodRequest.findFirst({ where: { id: input.requestId, branchId }, select: { id: true } });
+  const request = await prisma.bloodRequest.findFirst({
+    where: { id: input.requestId, branchId },
+    select: { id: true, bloodGroup: true, patient: { select: { bloodGroup: true } } },
+  });
   if (!request) throw NotFound("Request not found");
-  const component = await prisma.bloodComponent.findFirst({ where: { id: input.componentId, branchId }, select: { id: true } });
+  const component = await prisma.bloodComponent.findFirst({
+    where: { id: input.componentId, branchId },
+    select: { id: true, bloodGroup: true, type: true },
+  });
   if (!component) throw NotFound("Component not found");
+
+  // Patient-safety gate: the donor unit must be ABO/Rh compatible with the recipient. A
+  // COMPATIBLE result can never be recorded against a serologically incompatible pairing.
+  const recipientGroup = request.patient?.bloodGroup ?? request.bloodGroup;
+  const compat = evaluateCompatibility(component.bloodGroup, recipientGroup, component.type);
+  if (input.result === "COMPATIBLE" && !compat.compatible) {
+    throw DomainError(`Cannot record a COMPATIBLE cross-match: ${compat.reason}`, {
+      donorGroup: component.bloodGroup,
+      recipientGroup,
+    });
+  }
 
   const crossMatch = await prisma.crossMatch.create({
     data: {
@@ -28,7 +46,7 @@ export async function createCrossMatch(branchId: string, ctx: Ctx, input: CrossM
       technicianId: ctx.userId,
     },
   });
-  await writeAudit({ branchId, userId: ctx.userId, entity: "crossmatch", entityId: crossMatch.id, action: "CREATE", after: crossMatch });
+  await writeAudit({ branchId, userId: ctx.userId, entity: "crossmatch", entityId: crossMatch.id, action: "CREATE", after: { ...crossMatch, compatibility: compat } });
   return crossMatch;
 }
 
@@ -46,9 +64,15 @@ async function nextInvoiceNumber(tx: Prisma.TransactionClient, branchId: string)
  * fulfilled, and a DRAFT invoice is generated from the price list.
  */
 export async function createIssue(branchId: string, ctx: Ctx, input: IssueCreateInput) {
-  const request = await prisma.bloodRequest.findFirst({ where: { id: input.requestId, branchId } });
+  const request = await prisma.bloodRequest.findFirst({
+    where: { id: input.requestId, branchId },
+    include: { patient: { select: { bloodGroup: true } } },
+  });
   if (!request) throw NotFound("Request not found");
   if (request.status !== "APPROVED") throw DomainError("Only an approved request can be issued against");
+
+  // Recipient group for the final ABO/Rh safety gate (patient's recorded group wins).
+  const recipientGroup = request.patient?.bloodGroup ?? request.bloodGroup;
 
   const components = await prisma.bloodComponent.findMany({
     where: { branchId, barcode: { in: input.componentBarcodes } },
@@ -82,7 +106,11 @@ export async function createIssue(branchId: string, ctx: Ctx, input: IssueCreate
     });
     if (!crossMatch) problems.push(`${barcode}: no compatible cross-match`);
 
-    if (comp.status === "RESERVED" && comp.expiresAt > now && reservation && crossMatch) {
+    // Final ABO/Rh safety gate — enforced even if a cross-match record claims COMPATIBLE.
+    const compat = evaluateCompatibility(comp.bloodGroup, recipientGroup, comp.type);
+    if (!compat.compatible) problems.push(`${barcode}: ${compat.reason}`);
+
+    if (comp.status === "RESERVED" && comp.expiresAt > now && reservation && crossMatch && compat.compatible) {
       resolved.push({ componentId: comp.id, crossMatchId: crossMatch.id, bloodGroup: comp.bloodGroup, type: comp.type });
     }
   }
