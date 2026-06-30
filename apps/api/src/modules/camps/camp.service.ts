@@ -83,16 +83,16 @@ export async function campStats(branchId: string, id: string) {
 export async function remindCamp(branchId: string, ctx: Ctx, id: string) {
   const camp = await getCamp(branchId, id);
   const donors = await prisma.donation.findMany({ where: { branchId, campId: id }, select: { donorId: true }, distinct: ["donorId"] });
-  for (const d of donors) {
-    await prisma.notification.create({
-      data: {
+  if (donors.length > 0) {
+    await prisma.notification.createMany({
+      data: donors.map((d) => ({
         branchId,
-        channel: "INAPP",
+        channel: "INAPP" as const,
         type: "camp_reminder",
-        status: "SENT",
+        status: "SENT" as const,
         sentAt: new Date(),
         payload: { title: "Camp reminder", message: `Upcoming camp: ${camp.name} at ${camp.location}`, campId: id, donorId: d.donorId },
-      },
+      })),
     });
   }
   await writeAudit({ branchId, userId: ctx.userId, entity: "camp", entityId: id, action: "REMIND", after: { recipients: donors.length } });

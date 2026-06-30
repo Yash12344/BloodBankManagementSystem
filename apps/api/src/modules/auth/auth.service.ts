@@ -184,8 +184,22 @@ export async function rotateRefresh(rawToken: string, ctx: RequestContext): Prom
   });
   if (!user) throw Unauthorized("Account is not active");
 
-  // Rotate: revoke the presented token, mint a new one in the same family.
-  await prisma.refreshToken.update({ where: { id: existing.id }, data: { revokedAt: new Date() } });
+  // Atomically claim the token: only one caller can flip revokedAt from null. If two
+  // requests present the same valid token concurrently, the loser sees count === 0 and is
+  // treated as reuse (revoke the whole family) rather than both minting new tokens.
+  const claimed = await prisma.refreshToken.updateMany({
+    where: { id: existing.id, revokedAt: null },
+    data: { revokedAt: new Date() },
+  });
+  if (claimed.count === 0) {
+    await prisma.refreshToken.updateMany({
+      where: { familyId: existing.familyId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    await writeAudit({ userId: existing.userId, entity: "auth", entityId: existing.userId, action: "REFRESH_REUSE_DETECTED", ...ctx });
+    throw Unauthorized("Session expired, please sign in again");
+  }
+
   const tokens = await issueSession(user, existing.familyId);
   return { tokens, user: await buildPublicUser(user) };
 }

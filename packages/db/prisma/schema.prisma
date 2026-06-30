@@ -532,6 +532,7 @@ model Donation {
   unit        BloodUnit?
 
   @@index([branchId, status])
+  @@index([branchId, collectedAt])
   @@index([donorId])
   @@index([campId])
   @@map("donation")
@@ -586,6 +587,7 @@ model LabTest {
   testedBy   User?     @relation("testedBy", fields: [testedByUserId], references: [id], onDelete: SetNull)
   verifiedBy User?     @relation("verifiedBy", fields: [verifiedByUserId], references: [id], onDelete: SetNull)
 
+  @@index([result])
   @@map("lab_test")
 }
 
@@ -811,7 +813,8 @@ model Issue {
   items    IssueItem[]
   invoice  Invoice?
 
-  @@index([branchId])
+  @@index([branchId, issuedAt])
+  @@index([branchId, status])
   @@index([requestId])
   @@map("issue")
 }
@@ -859,6 +862,7 @@ model Invoice {
   @@unique([branchId, number])
   @@index([status])
   @@index([hospitalId])
+  @@index([branchId, issuedAt])
   @@map("invoice")
 }
 

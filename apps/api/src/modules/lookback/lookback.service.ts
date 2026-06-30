@@ -67,17 +67,17 @@ export async function recallDonor(branchId: string, ctx: Ctx, donorId: string, r
     await tx.donor.update({ where: { id: donorId }, data: { status: "BLACKLISTED" } });
     await tx.deferral.create({ data: { donorId, type: "PERMANENT", reason: `Recall: ${reason}`, byUserId: ctx.userId } });
 
-    // Notify affected hospitals.
-    for (const hospitalId of affectedHospitalIds) {
-      await tx.notification.create({
-        data: {
+    // Notify affected hospitals in a single batched insert.
+    if (affectedHospitalIds.length > 0) {
+      await tx.notification.createMany({
+        data: affectedHospitalIds.map((hospitalId) => ({
           branchId,
-          channel: "INAPP",
+          channel: "INAPP" as const,
           type: "recall",
-          status: "SENT",
+          status: "SENT" as const,
           sentAt: new Date(),
           payload: { title: "Blood recall notice", message: `Units from a recalled donor were issued to your hospital. Reason: ${reason}`, donorId, hospitalId },
-        },
+        })),
       });
     }
 
