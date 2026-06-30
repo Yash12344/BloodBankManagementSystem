@@ -69,7 +69,10 @@ jobs:
       - name: Sync schema to test database
         # Phase 1 uses `db push` to materialize the schema (no migration files yet).
         # Replace with `db:migrate:deploy` once the initial migration is committed.
-        run: pnpm db:push
+        # Call the package script directly (not the dotenv-cli-wrapped root script): CI
+        # injects DATABASE_URL through the job env, so Prisma reads it straight from the
+        # environment with no .env file involved.
+        run: pnpm --filter @bloodline/db push
 
       - name: Typecheck
         run: pnpm typecheck
