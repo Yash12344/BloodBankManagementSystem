@@ -2,8 +2,11 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "dist",
-    "rootDir": "src",
-    "types": ["node"]
+    "types": ["node"],
+    // This is an application bundled by tsup, not a published library — it emits no .d.ts.
+    // Disabling declaration also avoids TS2742 portability errors from pnpm's isolated
+    // node_modules layout for the Express Router type.
+    "declaration": false
   },
   "include": ["src/**/*.ts", "test/**/*.ts"],
   "exclude": ["node_modules", "dist"]

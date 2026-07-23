@@ -13,10 +13,14 @@ export interface AuthUser {
   permissions: Set<string>;
 }
 
-// Augment Express' Request with the authenticated user.
-declare module "express-serve-static-core" {
-  interface Request {
-    user?: AuthUser;
+// Augment Express' Request with the authenticated user. Uses the global `Express`
+// namespace (provided by @types/express) so it works regardless of the `types` config.
+declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
+  namespace Express {
+    interface Request {
+      user?: AuthUser;
+    }
   }
 }
 

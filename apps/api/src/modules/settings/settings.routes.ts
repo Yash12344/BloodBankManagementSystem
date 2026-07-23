@@ -25,7 +25,7 @@ settingsRouter.get("/users", view, asyncHandler(async (req: Request, res: Respon
   res.json({ data: await service.listUsers(branch(req)) });
 }));
 
-settingsRouter.get("/permissions", view, asyncHandler(async (req: Request, res: Response) => {
+settingsRouter.get("/permissions", view, asyncHandler(async (_req: Request, res: Response) => {
   res.json({ data: await service.permissionMatrix() });
 }));
 

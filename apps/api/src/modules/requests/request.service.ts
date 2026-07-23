@@ -118,7 +118,7 @@ export async function approveRequest(branchId: string, ctx: Ctx, id: string) {
       where: {
         branchId,
         bloodGroup: request.bloodGroup,
-        componentType: request.componentType,
+        type: request.componentType,
         status: "AVAILABLE",
         expiresAt: { gt: new Date() },
       },

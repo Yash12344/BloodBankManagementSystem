@@ -80,7 +80,7 @@ export async function movements(branchId: string, q: MovementsQuery): Promise<Pa
 
 export async function unitsInCell(branchId: string, bloodGroup: BloodGroup, componentType: ComponentType) {
   return prisma.bloodComponent.findMany({
-    where: { branchId, bloodGroup, componentType, status: { in: ["AVAILABLE", "RESERVED"] } },
+    where: { branchId, bloodGroup, type: componentType, status: { in: ["AVAILABLE", "RESERVED"] } },
     orderBy: { expiresAt: "asc" },
     include: { unit: { select: { bagNumber: true } } },
   });
@@ -92,7 +92,7 @@ export async function unitsInCell(branchId: string, bloodGroup: BloodGroup, comp
  */
 export async function fefo(branchId: string, bloodGroup: BloodGroup, componentType: ComponentType, qty: number) {
   return prisma.bloodComponent.findMany({
-    where: { branchId, bloodGroup, componentType, status: "AVAILABLE", expiresAt: { gt: new Date() } },
+    where: { branchId, bloodGroup, type: componentType, status: "AVAILABLE", expiresAt: { gt: new Date() } },
     orderBy: { expiresAt: "asc" },
     take: qty,
     include: { unit: { select: { bagNumber: true } } },
