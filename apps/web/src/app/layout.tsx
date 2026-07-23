@@ -1,9 +1,16 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { Providers } from "./providers";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
+// Self-hosted Inter (variable). Bundled from a committed woff2 so builds never reach out
+// to Google Fonts at build time — fully offline/air-gapped and behind-strict-proxy safe.
+const inter = localFont({
+  src: "./fonts/inter-latin-wght-normal.woff2",
+  variable: "--font-sans",
+  weight: "100 900",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "BloodLine — Blood Bank Management",
