@@ -9,6 +9,7 @@
     ".": "./src/index.ts"
   },
   "scripts": {
+    "postinstall": "prisma generate",
     "build": "prisma generate",
     "typecheck": "tsc --noEmit",
     "lint": "echo \"(no lint configured for db)\"",
